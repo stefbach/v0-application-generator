@@ -1,5 +1,69 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getOptimalConfig, makeOpenAIRequest, estimateCost, estimateTokens } from "../../../config/openai-config"
+
+// Configuration OpenAI intégrée
+const OPENAI_CONFIG = {
+  models: {
+    primary: "gpt-4o",
+    fallback: "gpt-4o-mini", 
+  },
+  documentConfigs: {
+    medical_report: {
+      model: "gpt-4o",
+      max_tokens: 4500,
+      temperature: 0.15,
+      top_p: 0.95,
+      frequency_penalty: 0.0,
+      presence_penalty: 0.05,
+    },
+    undue_delay_letter: {
+      model: "gpt-4o", 
+      max_tokens: 3500,
+      temperature: 0.2,
+      top_p: 0.9,
+      frequency_penalty: 0.1,
+      presence_penalty: 0.1,
+    },
+    provider_declaration: {
+      model: "gpt-4o-mini",
+      max_tokens: 2500,
+      temperature: 0.1,
+      top_p: 0.95,
+      frequency_penalty: 0.0,
+      presence_penalty: 0.0,
+    },
+    s2_application_form: {
+      model: "gpt-4o",
+      max_tokens: 3000,
+      temperature: 0.05,
+      top_p: 0.9,
+      frequency_penalty: 0.0,
+      presence_penalty: 0.0,
+    },
+    legal_justification_letter: {
+      model: "gpt-4o",
+      max_tokens: 5000,
+      temperature: 0.25,
+      top_p: 0.95,
+      frequency_penalty: 0.1,
+      presence_penalty: 0.15,
+    }
+  }
+}
+
+// Estimation coûts (prix par 1K tokens)
+const PRICING_ESTIMATES = {
+  "gpt-4o": { input: 0.005, output: 0.015 },
+  "gpt-4o-mini": { input: 0.00015, output: 0.0006 },
+}
+
+function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
+  const pricing = PRICING_ESTIMATES[model] || PRICING_ESTIMATES["gpt-4o"]
+  return (inputTokens / 1000 * pricing.input) + (outputTokens / 1000 * pricing.output)
+}
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 3.75)
+}
 
 // Système de prompts professionnels pour génération automatique de documents S2
 const DOCUMENT_PROMPTS = {
@@ -53,13 +117,6 @@ STRUCTURE OBLIGATOIRE:
 6. Tableau quantifiant les risques différentiels
 7. Conclusion ferme sur l'urgence médicale
 
-ÉLÉMENTS CRITIQUES:
-- Références scientifiques exactes avec liens DOI/PubMed
-- Quantification précise des risques (pourcentages, OR, RR)
-- Comparaison directe "chirurgie immédiate vs délai 12-18 mois"
-- Terminologie médico-légale appropriée
-- Arguments conformes à la jurisprudence européenne (Watts, Petru)
-
 PREUVES SCIENTIFIQUES À INTÉGRER:
 - Arterburn et al. JAMA 2015 (réduction mortalité 55%)
 - Sjöström et al. NEJM 2007/2012 (SOS Study)
@@ -95,20 +152,6 @@ COMPOSANTS OBLIGATOIRES:
 5. Type de provider (public/privé)
 6. Signatures et dates conformes
 
-EXIGENCES COMPLIANCE:
-- Conformité Règlement CE 883/2004
-- Acceptation S2 dans secteur public
-- Facturation via autorités sanitaires suisses
-- Pas de frais supplémentaires hors co-paiement
-- Devis détaillé avec breakdown des coûts
-- Accréditations européennes valides
-
-DÉTAILS CRITIQUES:
-- Distinction claire coûts publics/privés/co-paiement
-- Références aux accords bilatéraux UK-Suisse
-- Langue administrative précise
-- Format conforme aux templates NHS
-
 STYLE: Administratif, précis, légalement contraignant.`,
     
     userPrompt: `Complétez la déclaration provider pour:
@@ -137,21 +180,6 @@ SECTIONS À COMPLÉTER:
 7. Declarations (Parts 7-10) - signatures légales
 8. Application Checklist (Part 11) - vérification complétude
 
-EXIGENCES CRITIQUES:
-- Dates cohérentes dans tout le formulaire
-- Adresses et contacts vérifiables
-- NHS numbers et NI numbers valides
-- Éligibilité nationalité pour Suisse confirmée
-- Tous les champs obligatoires remplis
-- Signatures et dates conformes
-
-PIÈGES À ÉVITER:
-- Incohérences entre sections
-- Dates impossibles ou incohérentes
-- Manque d'éligibilité nationalité
-- Adresses non-résidentielles
-- GP details incorrects
-
 STYLE: Administratif strict, factuel, sans erreurs.`,
     
     userPrompt: `Complétez le formulaire S2 application form pour:
@@ -177,24 +205,6 @@ STRUCTURE JURIDIQUE OBLIGATOIRE:
 5. Données spécifiques chirurgie bariatrique
 6. Situation médicale du patient
 7. Conclusion juridique et demande formelle
-
-ÉLÉMENTS JURIDIQUES ESSENTIELS:
-- Article 20 Règlement 883/2004 (obligation autorisation)
-- Arrêt Watts C-372/04 (délais médicalement justifiables)
-- Arrêt Petru C-268/13 (traitement en temps utile)
-- Principe effectivité et proportionnalité
-
-PREUVES FACTUELLES À INTÉGRER:
-- NHS England waiting times (3.1M patients >18 weeks)
-- Stats Wales, Scotland, NI (délais >52 semaines)
-- FOI requests chirurgie bariatrique (105-130 semaines)
-- Royal College of Surgeons data (>8000 patients en liste)
-
-ARGUMENTATION:
-- Délai structurel vs besoin médical urgent
-- Risque aggravation irréversible
-- Non-conformité aux standards européens
-- Obligation juridique d'autoriser S2
 
 STYLE: Juridique formel, argumenté, référencé, contraignant.`,
     
@@ -275,6 +285,64 @@ const VALIDATION_TEMPLATES = {
     ],
     minWordCount: 2000,
     mustInclude: ['Article 20', 'Watts', 'Petru', 'undue delay', 'Regulation 883/2004']
+  }
+}
+
+// Fonction pour obtenir la configuration optimale
+function getOptimalConfig(documentType: string, customMaxTokens?: number) {
+  const config = OPENAI_CONFIG.documentConfigs[documentType] || OPENAI_CONFIG.documentConfigs.medical_report
+  
+  return {
+    model: config.model,
+    max_tokens: customMaxTokens || config.max_tokens,
+    temperature: config.temperature,
+    top_p: config.top_p,
+    frequency_penalty: config.frequency_penalty,
+    presence_penalty: config.presence_penalty,
+    response_format: { type: "text" },
+  }
+}
+
+// Fonction d'appel API avec retry
+async function makeOpenAIRequest(config: any, apiKey: string, retryCount = 0): Promise<any> {
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(config),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      
+      // Rate limit - retry
+      if (response.status === 429 && retryCount < 3) {
+        const delay = 1000 * Math.pow(2, retryCount)
+        await new Promise(resolve => setTimeout(resolve, delay))
+        return makeOpenAIRequest(config, apiKey, retryCount + 1)
+      }
+      
+      // Fallback vers mini si modèle principal indisponible
+      if (response.status === 404 && config.model === "gpt-4o") {
+        console.warn("GPT-4O non disponible, fallback vers GPT-4O-mini")
+        const fallbackConfig = { ...config, model: "gpt-4o-mini" }
+        return makeOpenAIRequest(fallbackConfig, apiKey, retryCount)
+      }
+      
+      throw new Error(`OpenAI API Error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    if (retryCount < 3) {
+      const delay = 1000 * Math.pow(2, retryCount)
+      await new Promise(resolve => setTimeout(resolve, delay))
+      return makeOpenAIRequest(config, apiKey, retryCount + 1)
+    }
+    throw error
   }
 }
 
