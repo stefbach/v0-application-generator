@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import type { PatientData } from "@/hooks/use-patient-data"
@@ -16,13 +15,53 @@ interface DocumentGeneratorProps {
 export function DocumentGenerator({ data }: DocumentGeneratorProps) {
   const [generatedDocuments, setGeneratedDocuments] = useState<Record<string, string>>({})
   const [isGeneratingWithAI, setIsGeneratingWithAI] = useState(false)
-  const [aiApiKey, setAiApiKey] = useState("")
+  const [apiKeyConfigured, setApiKeyConfigured] = useState<boolean | null>(null)
 
-  // Document generation functions would go here
-  // For brevity, I'll include placeholder functions
+  const callDocumentAPI = async (messages: any[], maxTokens = 2000, documentType: string) => {
+    const response = await fetch("/api/generate-document", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messages,
+        maxTokens,
+        documentType,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || "Failed to generate document")
+    }
+
+    const data = await response.json()
+    return data.content
+  }
+
+  const checkApiKeyConfiguration = async () => {
+    try {
+      const response = await fetch("/api/generate-document", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: "test" }],
+          maxTokens: 1,
+          documentType: "test",
+        }),
+      })
+
+      setApiKeyConfigured(response.ok)
+      return response.ok
+    } catch (error) {
+      setApiKeyConfigured(false)
+      return false
+    }
+  }
 
   const generateStandardDocuments = () => {
-    // Generate standard documents using templates
     const documents = {
       medicalReport: generateMedicalReport(),
       undueDelayLetter: generateUndueDelayLetter(),
@@ -35,23 +74,108 @@ export function DocumentGenerator({ data }: DocumentGeneratorProps) {
   }
 
   const generateAIDocuments = async () => {
-    if (!aiApiKey || !aiApiKey.startsWith("sk-")) {
-      alert("Please enter a valid OpenAI API key (starting with sk-) to use AI-enhanced document generation.")
-      return
+    // Check API key configuration if not already checked
+    if (apiKeyConfigured === null) {
+      const isConfigured = await checkApiKeyConfiguration()
+      if (!isConfigured) {
+        alert("OpenAI API key not configured. Please set OPENAI_API_KEY in your Vercel environment variables.")
+        return
+      }
     }
 
     setIsGeneratingWithAI(true)
 
     try {
-      // AI generation logic would go here
-      // For now, using standard generation
-      generateStandardDocuments()
+      const documents = {
+        medicalReport: await generateAIMedicalReport(),
+        undueDelayLetter: await generateAIUndueDelayLetter(),
+        s2Form: await generateAIS2Form(),
+        providerDeclaration: await generateAIProviderDeclaration(),
+        emailTemplate: await generateAIEmailTemplate(),
+      }
+
+      setGeneratedDocuments(documents)
     } catch (error) {
       console.error("AI generation error:", error)
-      alert("Error generating AI documents. Please try again.")
+      alert(`Error generating AI documents: ${error instanceof Error ? error.message : "Unknown error"}`)
     } finally {
       setIsGeneratingWithAI(false)
     }
+  }
+
+  const generateAIMedicalReport = async () => {
+    const messages = [
+      {
+        role: "system",
+        content:
+          "You are a medical professional creating a comprehensive medical report for NHS S2 funding application for bariatric surgery. Use professional medical terminology and provide detailed clinical justification.",
+      },
+      {
+        role: "user",
+        content: `Create a detailed medical report for ${data.firstName} ${data.lastName}, DOB: ${data.dateOfBirth}, NHS: ${data.nhsNumber}, BMI: ${data.bmi}, with comorbidities: ${data.comorbidities || "None specified"}. Treatment date: ${data.treatmentDate}.`,
+      },
+    ]
+    return await callDocumentAPI(messages, 2500, "medicalReport")
+  }
+
+  const generateAIUndueDelayLetter = async () => {
+    const messages = [
+      {
+        role: "system",
+        content:
+          "You are a legal medical advisor creating an undue delay letter for NHS S2 funding. Reference EU regulations and patient rights. Be authoritative and legally sound.",
+      },
+      {
+        role: "user",
+        content: `Create an undue delay letter for ${data.firstName} ${data.lastName} with BMI ${data.bmi} and comorbidities: ${data.comorbidities || "None"}. Emphasize medical urgency and EU patient rights.`,
+      },
+    ]
+    return await callDocumentAPI(messages, 2000, "undueDelayLetter")
+  }
+
+  const generateAIS2Form = async () => {
+    const messages = [
+      {
+        role: "system",
+        content:
+          "You are completing an official NHS S2 application form. Be precise, factual, and follow NHS formatting requirements.",
+      },
+      {
+        role: "user",
+        content: `Complete S2 form for ${data.firstName} ${data.lastName}, NHS: ${data.nhsNumber}, treatment in ${data.treatmentCountry || "Belgium"} on ${data.treatmentDate}.`,
+      },
+    ]
+    return await callDocumentAPI(messages, 1500, "s2Form")
+  }
+
+  const generateAIProviderDeclaration = async () => {
+    const messages = [
+      {
+        role: "system",
+        content:
+          "You are a medical provider creating a professional declaration for bariatric surgery. Include surgeon credentials and hospital accreditation.",
+      },
+      {
+        role: "user",
+        content: `Create provider declaration for ${data.firstName} ${data.lastName}'s bariatric surgery with Dr. ${data.surgeonName || "Specialist Surgeon"} at ${data.hospitalName || "Accredited Medical Center"}.`,
+      },
+    ]
+    return await callDocumentAPI(messages, 1200, "providerDeclaration")
+  }
+
+  const generateAIEmailTemplate = async () => {
+    const messages = [
+      {
+        role: "system",
+        content:
+          "You are creating a professional email template for NHS S2 submission. Be formal, respectful, and include all necessary attachments references.",
+      },
+      {
+        role: "user",
+        content: `Create submission email for ${data.firstName} ${data.lastName}'s S2 application to NHS funding team.`,
+      },
+    ]
+    return await callDocumentAPI(messages, 800, "emailTemplate")
   }
 
   const downloadDocument = (content: string, filename: string) => {
@@ -66,7 +190,6 @@ export function DocumentGenerator({ data }: DocumentGeneratorProps) {
     URL.revokeObjectURL(url)
   }
 
-  // Placeholder generation functions
   const generateMedicalReport = () => `Medical Report for ${data.firstName} ${data.lastName}...`
   const generateUndueDelayLetter = () => `Undue Delay Letter for ${data.firstName} ${data.lastName}...`
   const generateS2Form = () => `S2 Form for ${data.firstName} ${data.lastName}...`
@@ -124,7 +247,6 @@ export function DocumentGenerator({ data }: DocumentGeneratorProps) {
 
   return (
     <div className="space-y-6">
-      {/* Data Validation */}
       {!isDataComplete && (
         <Card className="medical-card border-destructive/20 bg-destructive/5">
           <CardHeader>
@@ -139,7 +261,6 @@ export function DocumentGenerator({ data }: DocumentGeneratorProps) {
         </Card>
       )}
 
-      {/* AI Enhancement */}
       <Card className="medical-card border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5">
         <CardHeader>
           <div className="flex items-center space-x-2">
@@ -153,22 +274,41 @@ export function DocumentGenerator({ data }: DocumentGeneratorProps) {
         <CardContent>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="aiApiKey">OpenAI API Key (Optional)</Label>
-              <Input
-                id="aiApiKey"
-                type="password"
-                className="medical-input"
-                value={aiApiKey}
-                onChange={(e) => setAiApiKey(e.target.value)}
-                placeholder="sk-... (Enter your OpenAI API key for AI-enhanced documents)"
-              />
+              <Label>OpenAI API Key Status</Label>
+              <div
+                className={`p-3 rounded-lg border ${
+                  apiKeyConfigured === true
+                    ? "bg-primary/10 border-primary/20"
+                    : apiKeyConfigured === false
+                      ? "bg-destructive/10 border-destructive/20"
+                      : "bg-muted border-border"
+                }`}
+              >
+                {apiKeyConfigured === true ? (
+                  <div className="flex items-center space-x-2 text-primary">
+                    <CheckCircle className="w-4 h-4" />
+                    <span className="text-sm font-medium">API Key Configured</span>
+                  </div>
+                ) : apiKeyConfigured === false ? (
+                  <div className="flex items-center space-x-2 text-destructive">
+                    <AlertCircle className="w-4 h-4" />
+                    <span className="text-sm font-medium">API Key Not Configured</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2 text-muted-foreground">
+                    <AlertCircle className="w-4 h-4" />
+                    <span className="text-sm font-medium">API Key Status Unknown</span>
+                  </div>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">
-                With AI enhancement: Intelligent medical reasoning, enhanced clinical justifications, better legal
-                arguments, and professional NHS-compliant formatting.
+                {apiKeyConfigured === true
+                  ? "AI enhancement available: Intelligent medical reasoning, enhanced clinical justifications, better legal arguments, and professional NHS-compliant formatting."
+                  : "To enable AI features, add OPENAI_API_KEY (without NEXT_PUBLIC prefix) to your Vercel environment variables."}
               </p>
             </div>
 
-            {aiApiKey && (
+            {apiKeyConfigured === true && (
               <Card className="bg-accent/10 border-accent/20">
                 <CardContent className="pt-4">
                   <h4 className="font-medium text-accent-foreground mb-2 flex items-center">
@@ -190,7 +330,6 @@ export function DocumentGenerator({ data }: DocumentGeneratorProps) {
         </CardContent>
       </Card>
 
-      {/* Generation Options */}
       <Card className="medical-card">
         <CardHeader>
           <CardTitle>Document Generation</CardTitle>
@@ -222,7 +361,9 @@ export function DocumentGenerator({ data }: DocumentGeneratorProps) {
                   <Sparkles className="w-4 h-4 ml-1" />
                 </div>
                 <div className="text-xs text-primary-foreground/80">
-                  {aiApiKey ? "Intelligent medical reasoning & enhanced arguments" : "Requires OpenAI API key"}
+                  {apiKeyConfigured === true
+                    ? "Intelligent medical reasoning & enhanced arguments"
+                    : "API key configuration will be checked"}
                 </div>
               </div>
             </Button>
@@ -230,7 +371,6 @@ export function DocumentGenerator({ data }: DocumentGeneratorProps) {
         </CardContent>
       </Card>
 
-      {/* Generated Documents */}
       {Object.keys(generatedDocuments).length > 0 && (
         <Card className="medical-card">
           <CardHeader>
@@ -260,7 +400,7 @@ export function DocumentGenerator({ data }: DocumentGeneratorProps) {
                               Required
                             </Badge>
                           )}
-                          {aiApiKey && hasContent && (
+                          {apiKeyConfigured && hasContent && (
                             <Badge variant="outline" className="text-xs">
                               <Sparkles className="w-3 h-3 mr-1" />
                               AI
