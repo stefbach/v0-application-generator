@@ -1,0 +1,214 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Medical Professional Theme - Inspired by modern healthcare interfaces */
+  --background: oklch(0.02 0 0); /* Deep black background */
+  --foreground: oklch(0.98 0 0); /* Pure white text */
+  --card: oklch(0.05 0 0); /* Dark card background */
+  --card-foreground: oklch(0.95 0 0); /* Light card text */
+  --popover: oklch(0.03 0 0); /* Dark popover */
+  --popover-foreground: oklch(0.98 0 0); /* Light popover text */
+  --primary: oklch(0.7 0.15 142); /* Medical green accent */
+  --primary-foreground: oklch(0.02 0 0); /* Dark text on primary */
+  --secondary: oklch(0.12 0 0); /* Dark secondary */
+  --secondary-foreground: oklch(0.9 0 0); /* Light secondary text */
+  --muted: oklch(0.08 0 0); /* Muted dark background */
+  --muted-foreground: oklch(0.6 0 0); /* Muted text */
+  --accent: oklch(0.6 0.2 260); /* Medical blue accent */
+  --accent-foreground: oklch(0.98 0 0); /* Light accent text */
+  --destructive: oklch(0.65 0.25 25); /* Medical red for warnings */
+  --destructive-foreground: oklch(0.98 0 0); /* Light destructive text */
+  --border: oklch(0.15 0 0); /* Subtle borders */
+  --input: oklch(0.08 0 0); /* Input background */
+  --ring: oklch(0.7 0.15 142); /* Focus ring matches primary */
+  --chart-1: oklch(0.7 0.15 142); /* Medical green */
+  --chart-2: oklch(0.6 0.2 260); /* Medical blue */
+  --chart-3: oklch(0.65 0.25 25); /* Medical red */
+  --chart-4: oklch(0.75 0.15 60); /* Medical yellow */
+  --chart-5: oklch(0.65 0.15 300); /* Medical purple */
+  --radius: 0.75rem; /* Slightly larger radius for modern feel */
+  --sidebar: oklch(0.03 0 0);
+  --sidebar-foreground: oklch(0.95 0 0);
+  --sidebar-primary: oklch(0.7 0.15 142);
+  --sidebar-primary-foreground: oklch(0.02 0 0);
+  --sidebar-accent: oklch(0.08 0 0);
+  --sidebar-accent-foreground: oklch(0.9 0 0);
+  --sidebar-border: oklch(0.15 0 0);
+  --sidebar-ring: oklch(0.7 0.15 142);
+}
+
+.light {
+  --background: oklch(0.98 0 0); /* Light background for accessibility */
+  --foreground: oklch(0.05 0 0); /* Dark text */
+  --card: oklch(1 0 0); /* White cards */
+  --card-foreground: oklch(0.05 0 0); /* Dark card text */
+  --popover: oklch(1 0 0); /* White popover */
+  --popover-foreground: oklch(0.05 0 0); /* Dark popover text */
+  --primary: oklch(0.5 0.15 142); /* Darker medical green */
+  --primary-foreground: oklch(0.98 0 0); /* Light text on primary */
+  --secondary: oklch(0.95 0 0); /* Light secondary */
+  --secondary-foreground: oklch(0.1 0 0); /* Dark secondary text */
+  --muted: oklch(0.96 0 0); /* Light muted background */
+  --muted-foreground: oklch(0.4 0 0); /* Muted text */
+  --accent: oklch(0.4 0.2 260); /* Darker medical blue */
+  --accent-foreground: oklch(0.98 0 0); /* Light accent text */
+  --destructive: oklch(0.5 0.25 25); /* Darker medical red */
+  --destructive-foreground: oklch(0.98 0 0); /* Light destructive text */
+  --border: oklch(0.9 0 0); /* Light borders */
+  --input: oklch(0.98 0 0); /* Light input background */
+  --ring: oklch(0.5 0.15 142); /* Focus ring */
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  /* Custom scrollbar for dark theme */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+}
+
+/* Medical form specific styles */
+.medical-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.medical-card {
+  @apply bg-card border border-border rounded-lg p-6 shadow-sm;
+  transition: all 0.2s ease-in-out;
+}
+
+.medical-card:hover {
+  @apply shadow-md border-primary/20;
+}
+
+.medical-input {
+  @apply bg-input border-border text-foreground placeholder:text-muted-foreground;
+  transition: all 0.2s ease-in-out;
+}
+
+.medical-input:focus {
+  @apply ring-2 ring-ring border-primary;
+}
+
+.medical-button-primary {
+  @apply bg-primary text-primary-foreground hover:bg-primary/90;
+  transition: all 0.2s ease-in-out;
+}
+
+.medical-button-secondary {
+  @apply bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  transition: all 0.2s ease-in-out;
+}
+
+/* Progress indicator */
+.progress-step {
+  @apply relative flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-300;
+}
+
+.progress-step.completed {
+  @apply bg-primary border-primary text-primary-foreground;
+}
+
+.progress-step.active {
+  @apply border-primary text-primary bg-primary/10;
+}
+
+.progress-step.inactive {
+  @apply border-border text-muted-foreground;
+}
+
+/* Animation classes */
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-in {
+  animation: slideIn 0.4s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
