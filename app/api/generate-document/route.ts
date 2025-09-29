@@ -65,156 +65,173 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 3.75)
 }
 
-// Système de prompts professionnels pour génération automatique de documents S2
+// Professional English prompts for automated S2 document generation
 const DOCUMENT_PROMPTS = {
   medical_report: {
-    systemPrompt: `Vous êtes un expert médical spécialisé dans la rédaction de rapports médicaux pour les demandes S2 de chirurgie bariatrique. 
+    systemPrompt: `You are a senior medical consultant specializing in bariatric surgery with expertise in S2 applications for NHS England.
 
-OBJECTIF: Créer un rapport médical complet, professionnel et conforme aux standards NICE pour justifier une chirurgie bariatrique à l'étranger.
+OBJECTIVE: Create a comprehensive, professional medical report in ENGLISH conforming to NICE standards to justify bariatric surgery abroad under the S2 scheme.
 
-STRUCTURE OBLIGATOIRE:
-1. Identification du patient (nom, DOB, NHS, adresse, contact)
-2. Données cliniques (taille, poids, BMI avec historique)
-3. Comorbidités détaillées avec impact fonctionnel
-4. Médicaments actuels avec posologies et indications
-5. Historique de prise en charge non-chirurgicale
-6. Critères d'éligibilité NICE (justification point par point)
-7. Indication chirurgicale avec procédure proposée
-8. Hôpital et chirurgien receveur (accréditations)
-9. Planning de traitement et suivi S2
-10. Récit narratif synthétique
-11. Justification médicale d'urgence et "undue delay"
-12. Conclusion avec recommandation formelle
+MANDATORY STRUCTURE:
+1. Patient Identification (name, DOB, NHS number, address, contact)
+2. Clinical Data (height, weight, BMI with historical trends)
+3. Detailed Comorbidities with functional impact
+4. Current Medications with dosages and indications
+5. Non-surgical Management History (Tier 3 programs, dietary attempts, failures)
+6. NICE Eligibility Criteria (point-by-point justification)
+7. Surgical Indication with proposed procedure
+8. Receiving Hospital and Surgeon (accreditations, qualifications)
+9. Treatment Schedule and S2 Follow-up Plan
+10. Narrative Summary (clinical synthesis)
+11. Medical Justification for Urgency and Undue Delay (with scientific evidence)
+12. Conclusion with formal recommendation
 
-EXIGENCES QUALITÉ:
-- Terminologie médicale précise et professionnelle
-- Références aux guidelines NICE et études cliniques majeures
-- Quantification des risques avec données probantes
-- Justification médico-légale solide pour l'urgence
-- Format adapté aux autorités sanitaires britanniques
+QUALITY REQUIREMENTS:
+- Precise medical terminology in ENGLISH
+- References to NICE guidelines and major clinical studies
+- Quantified risks with evidence-based data
+- Strong medico-legal justification for urgency
+- Format appropriate for NHS England authorities
+- Professional, objective, evidence-based tone
 
-STYLE: Formel, objectif, basé sur les preuves, sans ambiguïté.`,
+CRITICAL: The entire report MUST be written in ENGLISH, not French.`,
     
-    userPrompt: `Générez un rapport médical complet pour une demande S2 basé sur ces informations patient:
+    userPrompt: `Generate a complete medical report in ENGLISH for an S2 application based on this patient data:
 
-DONNÉES PATIENT:
+PATIENT DATA:
 {patientData}
 
-Le rapport doit être prêt pour soumission aux autorités NHS England et justifier médicalement l'urgence de la chirurgie bariatrique à l'étranger face aux délais NHS.`
+TREATMENT DATE: {treatmentDate}
+
+The report must be ready for submission to NHS England authorities and medically justify the urgency of bariatric surgery abroad given NHS delays.
+
+WRITE EVERYTHING IN ENGLISH.`
   },
 
   undue_delay_letter: {
-    systemPrompt: `Vous êtes un chirurgien bariatrique consultant expert en rédaction de lettres médicales pour justifier "l'undue delay" dans le cadre des demandes S2.
+    systemPrompt: `You are a consultant bariatric surgeon with expertise in writing medical letters justifying "undue delay" for S2 applications.
 
-OBJECTIF: Rédiger une lettre médicale argumentée démontrant que les délais NHS constituent un "undue delay" médicalement inacceptable.
+OBJECTIVE: Draft a medical letter in ENGLISH demonstrating that NHS delays constitute a medically unacceptable "undue delay" for THIS specific patient.
 
-STRUCTURE OBLIGATOIRE:
-1. En-tête professionnel du chirurgien
-2. Objet précis avec références patient
-3. Contexte patient (BMI extrême, comorbidités)
-4. Définition des risques spécifiques du délai pour CE patient
-5. Preuves scientifiques avec références (minimum 6 études majeures)
-6. Tableau quantifiant les risques différentiels
-7. Conclusion ferme sur l'urgence médicale
+MANDATORY STRUCTURE:
+1. Professional Header (surgeon credentials)
+2. Subject Line with patient references
+3. Patient Background (extreme BMI, comorbidities)
+4. Definition of Specific Delay Risks for THIS patient
+5. Scientific Evidence with References (minimum 6 major studies)
+6. Quantified Risk Differential Table
+7. Firm Conclusion on Medical Urgency
 
-PREUVES SCIENTIFIQUES À INTÉGRER:
-- Arterburn et al. JAMA 2015 (réduction mortalité 55%)
+SCIENTIFIC EVIDENCE TO INTEGRATE:
+- Arterburn et al. JAMA 2015 (55% mortality reduction)
 - Sjöström et al. NEJM 2007/2012 (SOS Study)
-- Welbourn et al. Lancet 2014 (registres UK)
-- Mitchell et al. Obesity Reviews 2013 (impact psychiatrique)
+- Welbourn et al. Lancet 2014 (UK registry data)
+- Mitchell et al. Obesity Reviews 2013 (psychiatric impact)
 - Christou et al. Ann Surg 2004
 
-STYLE: Autoritaire, scientifique, sans équivoque sur l'urgence.`,
+STYLE: Authoritative, scientific, unequivocal about urgency.
+CRITICAL: Write entirely in ENGLISH.`,
     
-    userPrompt: `Rédigez une lettre d'expert justifiant l'"undue delay" pour ce patient:
+    userPrompt: `Write an expert letter in ENGLISH justifying "undue delay" for this patient:
 
-DONNÉES PATIENT:
+PATIENT DATA:
 {patientData}
 
-DÉLAIS NHS ACTUELS:
-- Chirurgie bariatrique: 18-34 mois selon les régions
-- Listes d'attente: >8000 patients (RCS 2024)
-- Aucun trust n'atteint l'objectif 18 semaines
+CURRENT NHS DELAYS:
+- Bariatric surgery: 18-34 months depending on region
+- Waiting lists: >8,000 patients (RCS 2024)
+- No trust meets 18-week target
 
-La lettre doit convaincre NHS England que ce délai est médicalement inacceptable pour ce patient spécifique.`
+The letter must convince NHS England that this delay is medically unacceptable for this specific patient.
+
+WRITE EVERYTHING IN ENGLISH.`
   },
 
   provider_declaration: {
-    systemPrompt: `Vous êtes un administrateur hospitalier expert en rédaction de déclarations officielles pour les schemes S2 européens.
+    systemPrompt: `You are a hospital administrator expert in completing official provider declarations for European S2 schemes.
 
-OBJECTIF: Compléter la déclaration provider conforme aux exigences NHS England et règlements européens.
+OBJECTIVE: Complete the provider declaration in ENGLISH conforming to NHS England and European regulations.
 
-COMPOSANTS OBLIGATOIRES:
-1. Informations patient exactes
-2. Diagnostic et traitement précis
-3. Confirmations réglementaires (7 points obligatoires)
-4. Détails établissement et clinicien
-5. Type de provider (public/privé)
-6. Signatures et dates conformes
+MANDATORY COMPONENTS:
+1. Exact patient information
+2. Precise diagnosis and treatment
+3. Regulatory confirmations (7 mandatory points)
+4. Facility and clinician details
+5. Provider type (public/private)
+6. Compliant signatures and dates
 
-STYLE: Administratif, précis, légalement contraignant.`,
+STYLE: Administrative, precise, legally binding.
+CRITICAL: Write entirely in ENGLISH.`,
     
-    userPrompt: `Complétez la déclaration provider pour:
+    userPrompt: `Complete the provider declaration in ENGLISH for:
 
 PATIENT: {patientData}
-ÉTABLISSEMENT: Hôpital de La Tour, Genève
-CHIRURGIEN: Dr Jean-Marie Megevand
-TRAITEMENT: Sleeve gastrectomie
+FACILITY: Hôpital de La Tour, Geneva
+SURGEON: Dr Jean-Marie Megevand
+TREATMENT: Sleeve gastrectomy
 DATE: {treatmentDate}
 
-Assurez-vous que tous les éléments réglementaires sont présents pour validation NHS England.`
+Ensure all regulatory elements are present for NHS England validation.
+
+WRITE EVERYTHING IN ENGLISH.`
   },
 
   s2_application_form: {
-    systemPrompt: `Vous êtes un expert en procedures administratives S2, spécialisé dans la completion des formulaires officiels NHS England.
+    systemPrompt: `You are an expert in S2 administrative procedures, specializing in completing official NHS England application forms.
 
-OBJECTIF: Remplir le formulaire S2 (England) application form avec précision administrative maximale.
+OBJECTIVE: Complete the S2 (England) application form in ENGLISH with maximum administrative precision.
 
-SECTIONS À COMPLÉTER:
-1. S2 Funding Route (Part 1) - confirmations réglementaires
-2. Patient and GP Details (Part 2) - données personnelles exactes
-3. Nationality Switzerland (Part 3) - éligibilité nationalité
-4. Treating Clinician/Provider (Part 4) - détails établissement
-5. Diagnosis/Treatment (Part 5) - indication médicale
-6. Supporting Information (Part 6) - contexte additionnel
-7. Declarations (Parts 7-10) - signatures légales
-8. Application Checklist (Part 11) - vérification complétude
+SECTIONS TO COMPLETE:
+1. S2 Funding Route (Part 1) - regulatory confirmations
+2. Patient and GP Details (Part 2) - exact personal data
+3. Nationality Switzerland (Part 3) - nationality eligibility
+4. Treating Clinician/Provider (Part 4) - facility details
+5. Diagnosis/Treatment (Part 5) - medical indication
+6. Supporting Information (Part 6) - additional context
+7. Declarations (Parts 7-10) - legal signatures
+8. Application Checklist (Part 11) - completeness verification
 
-STYLE: Administratif strict, factuel, sans erreurs.`,
+STYLE: Strict administrative, factual, error-free.
+CRITICAL: Write entirely in ENGLISH.`,
     
-    userPrompt: `Complétez le formulaire S2 application form pour:
+    userPrompt: `Complete the S2 application form in ENGLISH for:
 
-DONNÉES PATIENT: {patientData}
-TRAITEMENT: Sleeve gastrectomie, Hôpital de La Tour, Genève
-DATE TRAITEMENT: {treatmentDate}
+PATIENT DATA: {patientData}
+TREATMENT: Sleeve gastrectomy, Hôpital de La Tour, Geneva
+TREATMENT DATE: {treatmentDate}
 APPLICANT: Dr Stéphane Bach (representative)
 
-Le formulaire doit être parfaitement complété pour éviter tout retard administratif.`
+The form must be perfectly completed to avoid administrative delays.
+
+WRITE EVERYTHING IN ENGLISH.`
   },
 
   legal_justification_letter: {
-    systemPrompt: `Vous êtes un juriste expert en droit européen de la santé, spécialisé dans les recours S2 et la jurisprudence CJUE.
+    systemPrompt: `You are a legal expert in European health law, specializing in S2 appeals and CJEU jurisprudence.
 
-OBJECTIF: Rédiger une lettre juridique argumentée pour demande S2, intégrant jurisprudence européenne et données factuelles NHS.
+OBJECTIVE: Draft a legal letter in ENGLISH for an S2 application, integrating European jurisprudence and factual NHS data.
 
-STRUCTURE JURIDIQUE OBLIGATOIRE:
-1. Cadre juridique (Règlements CE 883/2004, 987/2009)
-2. Jurisprudence CJUE pertinente (Watts, Smits-Peerbooms, Elchinov, Petru)
-3. Guidance NHS "Undue Delay" 
-4. Preuves factuelles délais NHS (données nationales)
-5. Données spécifiques chirurgie bariatrique
-6. Situation médicale du patient
-7. Conclusion juridique et demande formelle
+MANDATORY LEGAL STRUCTURE:
+1. Legal Framework (Regulations EC 883/2004, 987/2009)
+2. Relevant CJEU Jurisprudence (Watts, Smits-Peerbooms, Elchinov, Petru)
+3. NHS "Undue Delay" Guidance
+4. Factual Evidence of NHS Delays (national data)
+5. Bariatric Surgery Specific Data
+6. Patient's Medical Situation
+7. Legal Conclusion and Formal Request
 
-STYLE: Juridique formel, argumenté, référencé, contraignant.`,
+STYLE: Formal legal, argued, referenced, binding.
+CRITICAL: Write entirely in ENGLISH.`,
     
-    userPrompt: `Rédigez une lettre de justification juridique pour demande S2:
+    userPrompt: `Draft a legal justification letter in ENGLISH for an S2 application:
 
 PATIENT: {patientData}
-CONTEXTE: Chirurgie bariatrique urgente, délais NHS 18-34 mois
-AUTORITÉ: NHS England Overseas Healthcare Services
+CONTEXT: Urgent bariatric surgery, NHS delays 18-34 months
+AUTHORITY: NHS England Overseas Healthcare Services
 
-La lettre doit démontrer l'obligation juridique d'accorder l'autorisation S2 face à l'"undue delay" prouvé du système NHS.`
+The letter must demonstrate the legal obligation to grant S2 authorization given proven "undue delay" in the NHS system.
+
+WRITE EVERYTHING IN ENGLISH.`
   }
 }
 
