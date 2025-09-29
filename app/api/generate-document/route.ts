@@ -396,6 +396,240 @@ export async function POST(request: NextRequest) {
 
     const prompt = DOCUMENT_PROMPTS[documentType]
     
+    // Format patient data appropriately for each document type
+    let formattedPatientData = ''
+    
+    switch(documentType) {
+      case 'medical_report':
+        formattedPatientData = `
+PATIENT IDENTIFICATION:
+- Full Name: ${patientData.fullName}
+- Date of Birth: ${patientData.dateOfBirth} (Age: ${patientData.age || 'N/A'})
+- Sex: ${patientData.sex || 'Female'}
+- NHS Number: ${patientData.nhsNumber}
+- Address: ${patientData.address}
+- Phone: ${patientData.phone}
+- Email: ${patientData.email}
+
+GP INFORMATION:
+- GP Name: ${patientData.gpName || 'Not specified'}
+- Practice: ${patientData.gpPractice || 'Not specified'}
+- Address: ${patientData.gpAddress || 'Not specified'}
+
+CLINICAL DATA:
+- Height: ${patientData.height} cm
+- Weight: ${patientData.weight} kg
+- BMI: ${patientData.bmi}
+- Primary Diagnosis: ${patientData.primaryDiagnosis || patientData.diagnosis}
+
+COMORBIDITIES:
+${Array.isArray(patientData.comorbidities) ? patientData.comorbidities.map((c, i) => 
+  typeof c === 'object' ? `${i+1}. ${c.condition} - ${c.severity || 'N/A'} - Impact: ${c.impact || 'N/A'}` 
+  : `${i+1}. ${c}`
+).join('\n') : 'None specified'}
+
+CURRENT MEDICATIONS:
+${Array.isArray(patientData.medications) ? patientData.medications.map((m, i) => 
+  typeof m === 'object' ? `${i+1}. ${m.name} ${m.dose} ${m.frequency} - ${m.indication}`
+  : `${i+1}. ${m}`
+).join('\n') : 'None specified'}
+
+WEIGHT MANAGEMENT HISTORY:
+${patientData.weightManagementHistory ? `
+- Tier 3 Program: ${patientData.weightManagementHistory.tier3Program ? 'Completed' : 'N/A'}
+- Duration: ${patientData.weightManagementHistory.tier3Duration || 'N/A'}
+- Outcome: ${patientData.weightManagementHistory.tier3Outcome || 'N/A'}
+- Dietary Pattern: ${patientData.weightManagementHistory.dietaryPattern || 'N/A'}
+- Physical Activity: ${patientData.weightManagementHistory.physicalActivity || 'N/A'}
+` : 'Multiple dietary and lifestyle interventions with unsustained results'}
+
+NICE ELIGIBILITY:
+${patientData.niceEligibility ? `
+- BMI Criteria Met: ${patientData.niceEligibility.bmiCriteria ? 'YES' : 'NO'} (BMI: ${patientData.niceEligibility.bmiValue})
+- Severe Comorbidities: ${patientData.niceEligibility.severeComorbidities ? 'YES' : 'NO'}
+- Tier 3 Completion: ${patientData.niceEligibility.tier3Completion ? 'YES' : 'NO'}
+- Patient Motivation: ${patientData.niceEligibility.patientMotivation || 'Strong'}
+` : 'BMI >40 with multiple severe comorbidities, all NICE criteria met'}
+
+TREATMENT PLAN:
+- Proposed Procedure: ${patientData.proposedTreatment}
+- Hospital: ${patientData.facilityName || 'Hôpital de La Tour'}
+- Location: ${patientData.facilityAddress || 'Geneva, Switzerland'}
+- Surgeon: ${patientData.surgeonName || 'Dr Jean-Marie Megevand'}
+- Surgery Date: ${patientData.surgeryDate || treatmentDate}
+
+NHS DELAYS CONTEXT:
+${patientData.nhsDelays ? `
+- Bariatric Surgery Wait: ${patientData.nhsDelays.bariatricSurgeryWaitTime}
+- Current Waiting List: ${patientData.nhsDelays.currentWaitingList}
+- Target Compliance: ${patientData.nhsDelays.targetCompliance}
+` : 'NHS bariatric surgery delays: 18-34 months, >8000 patients waiting'}
+`
+        break
+        
+      case 'undue_delay_letter':
+        formattedPatientData = `
+PATIENT DETAILS:
+- Name: ${patientData.fullName}
+- DOB: ${patientData.dateOfBirth} (Age: ${patientData.age || 'N/A'})
+- NHS Number: ${patientData.nhsNumber}
+
+CLINICAL SUMMARY:
+- BMI: ${patientData.bmi} (Height: ${patientData.height}cm, Weight: ${patientData.weight}kg)
+- Classification: ${patientData.primaryDiagnosis || patientData.diagnosis}
+
+KEY COMORBIDITIES:
+${Array.isArray(patientData.comorbidities) ? patientData.comorbidities.slice(0, 6).map((c, i) => 
+  typeof c === 'object' ? `${i+1}. ${c.condition} (${c.severity || 'Moderate to severe'})`
+  : `${i+1}. ${c}`
+).join('\n') : 'Multiple severe comorbidities'}
+
+PROPOSED TREATMENT:
+- Procedure: ${patientData.proposedTreatment}
+- Planned Date: ${patientData.surgeryDate || treatmentDate} (within 3 months)
+- Hospital: ${patientData.facilityName || 'Hôpital de La Tour'}, ${patientData.treatmentCountry || 'Switzerland'}
+- Surgeon: ${patientData.surgeonName || 'Dr Jean-Marie Megevand'}
+
+NHS DELAY CONTEXT:
+${patientData.nhsDelays ? `
+- Current NHS Wait Times: ${patientData.nhsDelays.bariatricSurgeryWaitTime}
+- Patients Waiting: ${patientData.nhsDelays.currentWaitingList}
+- This represents a delay of 12-18 months vs proposed surgery in 3 months
+` : 'NHS delays 18-34 months vs proposed treatment in 3 months'}
+
+QUANTIFIED RISKS IF DELAYED:
+${patientData.quantifiedRisks ? `
+- Annual Mortality: ${patientData.quantifiedRisks.annualMortality?.withoutSurgery || '3-4% per year'}
+- Cardiovascular Risk: ${patientData.quantifiedRisks.cardiovascular?.withoutSurgery || '40-50% higher'}
+- Diabetes Incidence: ${patientData.quantifiedRisks.diabetes?.withoutSurgery || '8-10% per year'}
+` : 'Significant increased mortality and morbidity risk'}
+`
+        break
+        
+      case 'provider_declaration':
+        formattedPatientData = `
+PATIENT INFORMATION:
+- Name: ${patientData.fullName}
+- Date of Birth: ${patientData.dateOfBirth}
+- Address: ${patientData.address}
+
+DIAGNOSIS AND TREATMENT:
+- Diagnosis: ${patientData.primaryDiagnosis || patientData.diagnosis}
+- Procedure: ${patientData.proposedTreatment}
+- Treatment Date: ${patientData.surgeryDate || treatmentDate}
+
+FACILITY INFORMATION:
+- Name: ${patientData.facilityName || 'Hôpital de La Tour'}
+- Address: ${patientData.facilityAddress || 'Avenue J.-D. Maillard 3, 1217 Meyrin, Geneva, Switzerland'}
+- Type: ${patientData.facilityType || 'Public (State Funded) Healthcare Provider'}
+- Phone: ${patientData.facilityPhone || '+41 22 719 63 65'}
+- Email: ${patientData.facilityEmail || 'direction@latour.ch'}
+
+TREATING CLINICIAN:
+- Name: ${patientData.surgeonName || 'Dr Jean-Marie Megevand'}
+- Title: ${patientData.surgeonTitle || 'Consultant Bariatric Surgeon'}
+
+ADMINISTRATIVE CONTACT:
+- Name: ${patientData.administrativeContact || 'Olivier SCHMITT'}
+- Title: ${patientData.administrativeTitle || 'Directeur General/CEO'}
+`
+        break
+        
+      case 's2_application_form':
+        formattedPatientData = `
+PART 1 - S2 FUNDING ROUTE:
+- Application Type: Before treatment
+- Planned Treatment Date: ${patientData.surgeryDate || treatmentDate}
+- Treatment in State Healthcare: YES
+- Country: ${patientData.treatmentCountry || 'Switzerland'}
+- Ordinarily Resident in England: YES
+- Travel Dates: ${patientData.expectedTravelDates?.departure || 'N/A'} to ${patientData.expectedTravelDates?.return || 'N/A'}
+
+PART 2 - PATIENT AND GP DETAILS:
+- Family Name: ${patientData.lastName || patientData.fullName?.split(' ')[1] || 'Griffin'}
+- First Name: ${patientData.firstName || patientData.fullName?.split(' ')[0] || 'Karen'}
+- Date of Birth: ${patientData.dateOfBirth}
+- Sex: ${patientData.sex || 'Female'}
+- NHS Number: ${patientData.nhsNumber}
+- National Insurance: ${patientData.nationalInsurance || 'N/A'}
+- Phone: ${patientData.phone}
+- Email: ${patientData.email}
+- Address: ${patientData.address}
+- GP Name: ${patientData.gpName || 'N/A'}
+- GP Practice: ${patientData.gpPractice || 'N/A'}
+- GP Address: ${patientData.gpAddress || 'N/A'}
+- GP Consultation Date: ${patientData.gpConsultationDate || 'N/A'}
+
+PART 4 - TREATING CLINICIAN/PROVIDER:
+- Clinician Name: ${patientData.surgeonName || 'Dr Jean-Marie Megevand'}
+- Establishment: ${patientData.facilityName || 'Hôpital de La Tour'}
+- Address: ${patientData.facilityAddress || 'Avenue J.-D. Maillard 3, 1217 Meyrin'}
+- Country: ${patientData.treatmentCountry || 'Switzerland'}
+- Phone: ${patientData.facilityPhone || '+41 22 719 63 65'}
+- Email: ${patientData.facilityEmail || 'direction@latour.ch'}
+
+PART 5 - DIAGNOSIS/TREATMENT:
+- Diagnosed Condition: ${patientData.primaryDiagnosis || patientData.diagnosis}
+- Treatment Description: ${patientData.proposedTreatment}
+- Planned Treatment Date: ${patientData.surgeryDate || treatmentDate}
+
+PART 10 - APPLICANT DETAILS:
+- Applicant Name: ${patientData.applicantName || 'Dr Stéphane Bach'}
+- Relationship: ${patientData.applicantRelationship || 'Authorised Representative for S2 Application'}
+- Title: ${patientData.applicantTitle || 'Doctor'}
+- Phone: ${patientData.applicantPhone || 'N/A'}
+- Email: ${patientData.applicantEmail || 'N/A'}
+- Address: ${patientData.applicantAddress || 'N/A'}
+`
+        break
+        
+      case 'legal_justification_letter':
+        formattedPatientData = `
+PATIENT IDENTIFICATION:
+- Name: ${patientData.fullName}
+- DOB: ${patientData.dateOfBirth}
+- NHS Number: ${patientData.nhsNumber}
+
+MEDICAL SITUATION:
+- BMI: ${patientData.bmi} (Morbid obesity)
+- Key Comorbidities: ${Array.isArray(patientData.comorbidities) ? 
+  patientData.comorbidities.slice(0, 5).map(c => typeof c === 'object' ? c.condition : c).join(', ')
+  : 'Multiple severe comorbidities'}
+- Tier 3 Program: ${patientData.weightManagementHistory?.tier3Program ? 'Completed' : 'Completed'} - Failed conservative management
+- NICE Eligibility: Fully met (BMI >40 with severe comorbidities)
+
+PROPOSED TREATMENT:
+- Procedure: ${patientData.proposedTreatment}
+- Date: ${patientData.surgeryDate || treatmentDate}
+- Location: ${patientData.facilityName || 'Hôpital de La Tour'}, ${patientData.treatmentCountry || 'Switzerland'}
+
+NHS DELAYS (FACTUAL EVIDENCE):
+${patientData.nhsDelays ? `
+- Bariatric Surgery Wait Times: ${patientData.nhsDelays.bariatricSurgeryWaitTime}
+- Current Waiting List: ${patientData.nhsDelays.currentWaitingList}
+- NHS Target Compliance: ${patientData.nhsDelays.targetCompliance}
+- Regional Variation: ${patientData.nhsDelays.regionalVariation || 'Significant disparities'}
+- Tier 3 Delays: ${patientData.nhsDelays.tier3Delays || 'Often >20 months'}
+` : 'NHS delays 18-34 months, >8000 patients waiting, no trust meets targets'}
+
+LEGAL FRAMEWORK:
+${patientData.legalFramework ? `
+- Regulation: ${patientData.legalFramework.regulation}
+- Key Article: ${patientData.legalFramework.article}
+- CJEU Cases: ${patientData.legalFramework.cjeuCases?.join('; ') || 'Watts, Petru, Elchinov, Smits-Peerbooms'}
+- NHS Guidance: ${patientData.legalFramework.nhsGuidance}
+` : 'EC 883/2004, Article 20, CJEU jurisprudence (Watts, Petru, Elchinov)'}
+
+AUTHORITY:
+- NHS England Overseas Healthcare Services
+- European Cross Border Healthcare Team
+`
+        break
+        
+      default:
+        formattedPatientData = JSON.stringify(patientData, null, 2)
+    }
+    
     // Préparation des messages avec prompts spécialisés
     const messages = [
       {
@@ -405,7 +639,7 @@ export async function POST(request: NextRequest) {
       {
         role: "user", 
         content: prompt.userPrompt
-          .replace('{patientData}', JSON.stringify(patientData, null, 2))
+          .replace('{patientData}', formattedPatientData)
           .replace('{treatmentDate}', treatmentDate || new Date().toISOString().split('T')[0])
       }
     ]
