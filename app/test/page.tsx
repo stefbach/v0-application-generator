@@ -1,657 +1,747 @@
-"use client"
+import { type NextRequest, NextResponse } from "next/server"
 
-import { useState } from 'react'
-import Link from 'next/link'
-
-const DOCUMENT_TYPES = [
-  { key: 'medical_report', label: 'Rapport Médical S2', icon: '📋' },
-  { key: 'undue_delay_letter', label: 'Lettre Undue Delay', icon: '⚕️' },
-  { key: 'provider_declaration', label: 'Déclaration Provider', icon: '🏥' },
-  { key: 's2_application_form', label: 'Formulaire S2', icon: '📄' },
-  { key: 'legal_justification_letter', label: 'Justification Juridique', icon: '⚖️' }
-]
-
-export default function TestPage() {
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<any>(null)
-  const [error, setError] = useState<string>('')
-  const [selectedDocType, setSelectedDocType] = useState('medical_report')
-  const [maxTokens, setMaxTokens] = useState(2000)
-
-  // Complete patient data based on real S2 documents
-  const testData = {
-    // Personal Information
-    fullName: "Karen Griffin",
-    firstName: "Karen",
-    lastName: "Griffin",
-    dateOfBirth: "14/07/1972",
-    age: 53,
-    sex: "Female",
-    nhsNumber: "6085748752",
-    nationalInsurance: "NY513105D",
-    
-    // Contact Information
-    address: "51 Bridgeman Rd, Radford, Coventry CV6 1NQ",
-    postcode: "CV6 1NQ",
-    city: "Coventry",
-    phone: "+44 7760 884352",
-    email: "griffin_karen@sky.com",
-    
-    // GP Information
-    gpName: "Dr Keane",
-    gpPractice: "Engleton House Surgery",
-    gpAddress: "2 Villa Road, Radford, Coventry",
-    gpConsultationDate: "21/01/2025",
-    
-    // Clinical Measurements
-    height: 157, // cm
-    weight: 116, // kg (115.8 kg recent)
-    bmi: 47.1,
-    bmiHistory: [
-      { date: "2023-01", bmi: 45.2 },
-      { date: "2024-01", bmi: 46.5 },
-      { date: "2025-01", bmi: 47.1 }
-    ],
-    
-    // Diagnosis
-    primaryDiagnosis: "Morbid obesity",
-    icd10Code: "E66.01",
-    
-    // Comprehensive Comorbidities
-    comorbidities: [
-      {
-        condition: "Familial hypercholesterolemia",
-        severity: "Severe",
-        impact: "Increased cardiovascular risk"
-      },
-      {
-        condition: "Hypertension",
-        severity: "Controlled with medication",
-        impact: "Requires daily antihypertensive therapy"
-      },
-      {
-        condition: "Osteoarthritis and osteoporosis",
-        severity: "Moderate to severe",
-        impact: "Chronic pain, reduced mobility, joint degeneration"
-      },
-      {
-        condition: "Depression / PTSD",
-        severity: "Moderate",
-        impact: "Requires psychiatric medication, affects quality of life"
-      },
-      {
-        condition: "Ulcerative colitis",
-        severity: "Intermittent flares",
-        impact: "Gastrointestinal complications"
-      },
-      {
-        condition: "Coeliac disease",
-        severity: "Diagnosed",
-        impact: "Dietary restrictions, malabsorption risk"
-      },
-      {
-        condition: "Fibromyalgia",
-        severity: "Chronic",
-        impact: "Widespread pain, fatigue"
-      },
-      {
-        condition: "Glaucoma",
-        severity: "Early stage",
-        impact: "Vision preservation required"
-      },
-      {
-        condition: "Optic neuritis",
-        severity: "History of",
-        impact: "Visual disturbances"
-      }
-    ],
-    
-    // Current Medications with full details
-    medications: [
-      {
-        name: "Estradiol (HRT)",
-        dose: "1 mg",
-        frequency: "Once daily",
-        indication: "Postmenopausal symptoms management"
-      },
-      {
-        name: "Gabapentin",
-        dose: "300 mg",
-        frequency: "Three times daily (TDS)",
-        indication: "Neuropathic pain, fibromyalgia"
-      },
-      {
-        name: "Zapain (Codeine/Paracetamol)",
-        dose: "30/500 mg",
-        frequency: "Up to 4 times daily PRN",
-        indication: "Chronic pain management"
-      },
-      {
-        name: "Sertraline",
-        dose: "100 mg",
-        frequency: "Once daily",
-        indication: "Depression, PTSD"
-      },
-      {
-        name: "Mirabegron",
-        dose: "50 mg",
-        frequency: "Once daily",
-        indication: "Overactive bladder"
-      },
-      {
-        name: "Amlodipine",
-        dose: "10 mg",
-        frequency: "Once daily",
-        indication: "Hypertension control"
-      },
-      {
-        name: "Fexofenadine",
-        dose: "180 mg",
-        frequency: "Once daily",
-        indication: "Allergic rhinitis"
-      },
-      {
-        name: "Atorvastatin",
-        dose: "20 mg",
-        frequency: "Once daily",
-        indication: "Familial hypercholesterolemia"
-      },
-      {
-        name: "Ibandronic acid",
-        dose: "150 mg",
-        frequency: "Once monthly",
-        indication: "Osteoporosis prevention and treatment"
-      }
-    ],
-    
-    // Non-surgical Management History
-    weightManagementHistory: {
-      tier3Program: true,
-      tier3Duration: "12 months",
-      tier3Outcome: "Failure of conservative care - modest unsustained weight loss",
-      dietaryAttempts: [
-        "Multiple structured diet programs",
-        "Specialized weight management clinic follow-up",
-        "Nutritionist consultations"
-      ],
-      dietaryPattern: "High-carbohydrate diet, large portions, binge eating episodes",
-      physicalActivity: "Severely limited by fatigue and joint pain",
-      pharmacologicalAttempts: [
-        "Previous weight loss medications (details in medical history)"
-      ],
-      psychologicalSupport: "Ongoing psychiatric care for depression/PTSD"
+// Configuration OpenAI intégrée
+const OPENAI_CONFIG = {
+  models: {
+    primary: "gpt-4o",
+    fallback: "gpt-4o-mini", 
+  },
+  documentConfigs: {
+    medical_report: {
+      model: "gpt-4o",
+      max_tokens: 4500,
+      temperature: 0.15,
+      top_p: 0.95,
+      frequency_penalty: 0.0,
+      presence_penalty: 0.05,
     },
-    
-    // NICE Eligibility
-    niceEligibility: {
-      bmiCriteria: true, // BMI ≥ 40
-      bmiValue: 47.1,
-      severeComorbidities: true,
-      comorbiditiesList: [
-        "Hypertension",
-        "Dyslipidemia (familial hypercholesterolemia)",
-        "Osteoarthritis",
-        "Osteoporosis",
-        "Ulcerative colitis",
-        "Depression/PTSD"
-      ],
-      tier3Completion: true,
-      patientMotivation: "Strong, explicit request for bariatric surgery",
-      psychologicalReadiness: "Assessed and confirmed",
-      understandsRisks: true,
-      commitmentToFollowUp: true
+    undue_delay_letter: {
+      model: "gpt-4o", 
+      max_tokens: 3500,
+      temperature: 0.2,
+      top_p: 0.9,
+      frequency_penalty: 0.1,
+      presence_penalty: 0.1,
     },
-    
-    // Proposed Treatment
-    proposedTreatment: "Sleeve gastrectomy (laparoscopic)",
-    procedureType: "Bariatric surgery",
-    surgicalApproach: "Laparoscopic sleeve gastrectomy",
-    expectedBenefits: [
-      "60-70% excess weight loss within 12-18 months",
-      "Significant improvement of comorbidities (HTN, dyslipidemia, OSA)",
-      "Improved mobility and joint pain reduction",
-      "Enhanced quality of life",
-      "Reduced cardiovascular risk",
-      "Improved psychiatric outcomes"
-    ],
-    risksIfDelayed: [
-      "Increased cardiovascular risk (hypertension, dyslipidemia)",
-      "Progression of osteoarthritis and osteoporosis",
-      "Aggravation of psychiatric disorders (PTSD, depression)",
-      "Gastrointestinal complications (ulcerative colitis, malabsorption)",
-      "Further weight gain and metabolic deterioration",
-      "Increased surgical risks with age and comorbidity progression"
-    ],
-    
-    // Treatment Facility
-    treatmentCountry: "Switzerland",
-    facilityName: "Hôpital de La Tour",
-    facilityAddress: "Avenue J.-D. Maillard 3, 1217 Meyrin, Geneva, Switzerland",
-    facilityType: "Public (State Funded) Healthcare Provider",
-    facilityPhone: "+41 22 719 63 65",
-    facilityEmail: "direction@latour.ch",
-    facilityAccreditation: "Fully accredited, compliant with European bariatric standards",
-    
-    // Treating Surgeon
-    surgeonName: "Dr Jean-Marie Megevand",
-    surgeonTitle: "Consultant Bariatric Surgeon",
-    surgeonQualifications: "Board-certified bariatric surgeon with extensive European experience",
-    surgeonAccreditation: "IFSO (International Federation for Surgery of Obesity) certified",
-    
-    // Administrative Contact
-    administrativeContact: "Olivier SCHMITT",
-    administrativeTitle: "Directeur General/CEO",
-    
-    // Treatment Schedule
-    preoperativeConsultation: "24/10/2025",
-    surgeryDate: "05/11/2025",
-    expectedTravelDates: {
-      departure: "04/11/2025",
-      return: "08/11/2025"
+    provider_declaration: {
+      model: "gpt-4o-mini",
+      max_tokens: 2500,
+      temperature: 0.1,
+      top_p: 0.95,
+      frequency_penalty: 0.0,
+      presence_penalty: 0.0,
     },
-    followUpSchedule: [
-      { timepoint: "1 month", date: "05/12/2025", format: "In-person or teleconsultation" },
-      { timepoint: "6 months", date: "05/05/2026", format: "Teleconsultation" },
-      { timepoint: "1 year", date: "05/11/2026", format: "Comprehensive review" },
-      { timepoint: "2 years", date: "05/11/2027", format: "Annual follow-up" }
-    ],
-    followUpContent: [
-      "Comprehensive clinical review",
-      "Nutritional and vitamin assessment",
-      "Monitoring of comorbidities",
-      "Psychological support and physical activity guidance",
-      "Secure teleconsultations (HIPAA/GDPR compliant)",
-      "Shared care with GP (Engleton House Surgery, UK)"
-    ],
-    
-    // S2 Application Details
-    applicantName: "Dr Stéphane Bach",
-    applicantTitle: "Doctor",
-    applicantRelationship: "Authorised Representative for S2 Application",
-    applicantEmail: "sbach@obesity-care-clinic.com",
-    applicantPhone: "+447458114333",
-    applicantAddress: "Quad Central Q3, Level 1, Office 5 Triq l-Esportaturi, Mriehel Industrial Zone CBD 1040 Malta",
-    
-    // Medical Justification Data
-    nhsDelays: {
-      bariatricSurgeryWaitTime: "18-34 months depending on region",
-      currentWaitingList: ">8,000 patients (Royal College of Surgeons 2024)",
-      targetCompliance: "No trust meets 18-week target",
-      regionalVariation: "Significant disparities across England",
-      tier3Delays: "Often exceeding 20 months for pre-operative programs"
+    s2_application_form: {
+      model: "gpt-4o",
+      max_tokens: 3000,
+      temperature: 0.05,
+      top_p: 0.9,
+      frequency_penalty: 0.0,
+      presence_penalty: 0.0,
     },
-    
-    // Scientific Evidence for Undue Delay
-    scientificEvidence: [
-      {
-        study: "Arterburn et al. JAMA 2015",
-        finding: "55% reduction in all-cause mortality",
-        relevance: "Demonstrates life-saving benefit of timely surgery"
-      },
-      {
-        study: "Sjöström et al. NEJM 2007",
-        finding: "29% mortality reduction in SOS study",
-        relevance: "Long-term survival benefit"
-      },
-      {
-        study: "Sjöström et al. NEJM 2012",
-        finding: "78% reduction in new-onset diabetes",
-        relevance: "Metabolic benefit of early intervention"
-      },
-      {
-        study: "Welbourn et al. Lancet 2014",
-        finding: "UK registry confirms reduced mortality",
-        relevance: "Real-world evidence in UK population"
-      },
-      {
-        study: "Mitchell et al. Obesity Reviews 2013",
-        finding: "Delays >12 months worsen psychiatric outcomes",
-        relevance: "Mental health deterioration with waiting"
-      },
-      {
-        study: "Christou et al. Ann Surg 2004",
-        finding: ">50% reduction in morbidity/mortality",
-        relevance: "Overall health benefit quantification"
-      }
-    ],
-    
-    // Risk Quantification
-    quantifiedRisks: {
-      annualMortality: {
-        withSurgery: "~0.3% perioperative, then -29% long-term reduction",
-        withoutSurgery: "3-4% per year (BMI >45)",
-        benefit: ">30% survival gain"
-      },
-      cardiovascular: {
-        withSurgery: "40% reduction in events",
-        withoutSurgery: "40-50% higher risk with HTN, dyslipidemia",
-        benefit: "~70% risk reduction"
-      },
-      diabetes: {
-        withSurgery: "2% annual incidence",
-        withoutSurgery: "8-10% annual incidence",
-        benefit: "~75% reduction"
-      },
-      mobility: {
-        withSurgery: "Significant functional improvement",
-        withoutSurgery: "Progressive disability, loss of mobility",
-        benefit: ">50% functional improvement"
-      },
-      psychiatric: {
-        withSurgery: "Improved mood, reduced depression/anxiety",
-        withoutSurgery: "Worsening psychiatric morbidity",
-        benefit: "Significant quality of life gain"
-      }
-    },
-    
-    // Legal Framework
-    legalFramework: {
-      regulation: "EC 883/2004 and 987/2009",
-      article: "Article 20 - Authorization for planned treatment abroad",
-      cjeuCases: [
-        "Watts (C-372/04) - Prohibition of refusal if delays exceed medically acceptable timeframe",
-        "Smits-Peerbooms (C-157/99) - Refusal must be motivated, objective, individualized",
-        "Elchinov (C-173/09) - Mandatory authorization if national system cannot provide effective access",
-        "Petru (C-268/13) - Obligation to authorize if system cannot guarantee timely treatment"
-      ],
-      nhsGuidance: "Undue delay defined as inability to provide treatment within medically justifiable timeframe"
-    },
-    
-    // Security Question (for verification)
-    securityQuestion: "Name of treating hospital",
-    securityAnswer: "Hôpital de La Tour"
-  }
-
-  const testAPI = async () => {
-    setLoading(true)
-    setError('')
-    setResult(null)
-
-    try {
-      const response = await fetch('/api/generate-document', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          patientData: testData,
-          documentType: selectedDocType,
-          treatmentDate: '05/11/2025',
-          maxTokens: maxTokens
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || `HTTP ${response.status}`)
-      }
-
-      const data = await response.json()
-      setResult(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-    } finally {
-      setLoading(false)
+    legal_justification_letter: {
+      model: "gpt-4o",
+      max_tokens: 5000,
+      temperature: 0.25,
+      top_p: 0.95,
+      frequency_penalty: 0.1,
+      presence_penalty: 0.15,
     }
   }
+}
 
-  const downloadDocument = () => {
-    if (!result) return
+// Estimation coûts (prix par 1K tokens)
+const PRICING_ESTIMATES = {
+  "gpt-4o": { input: 0.005, output: 0.015 },
+  "gpt-4o-mini": { input: 0.00015, output: 0.0006 },
+}
+
+function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
+  const pricing = PRICING_ESTIMATES[model] || PRICING_ESTIMATES["gpt-4o"]
+  return (inputTokens / 1000 * pricing.input) + (outputTokens / 1000 * pricing.output)
+}
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 3.75)
+}
+
+// Professional English prompts for automated S2 document generation
+const DOCUMENT_PROMPTS = {
+  medical_report: {
+    systemPrompt: `You are a senior medical consultant specializing in bariatric surgery with expertise in S2 applications for NHS England.
+
+OBJECTIVE: Create a comprehensive, professional medical report in ENGLISH conforming to NICE standards to justify bariatric surgery abroad under the S2 scheme.
+
+MANDATORY STRUCTURE:
+1. Patient Identification (name, DOB, NHS number, address, contact)
+2. Clinical Data (height, weight, BMI with historical trends)
+3. Detailed Comorbidities with functional impact
+4. Current Medications with dosages and indications
+5. Non-surgical Management History (Tier 3 programs, dietary attempts, failures)
+6. NICE Eligibility Criteria (point-by-point justification)
+7. Surgical Indication with proposed procedure
+8. Receiving Hospital and Surgeon (accreditations, qualifications)
+9. Treatment Schedule and S2 Follow-up Plan
+10. Narrative Summary (clinical synthesis)
+11. Medical Justification for Urgency and Undue Delay (with scientific evidence)
+12. Conclusion with formal recommendation
+
+QUALITY REQUIREMENTS:
+- Precise medical terminology in ENGLISH
+- References to NICE guidelines and major clinical studies
+- Quantified risks with evidence-based data
+- Strong medico-legal justification for urgency
+- Format appropriate for NHS England authorities
+- Professional, objective, evidence-based tone
+
+CRITICAL: The entire report MUST be written in ENGLISH, not French.`,
     
-    const docType = DOCUMENT_TYPES.find(d => d.key === selectedDocType)
-    const filename = `${docType?.label.replace(/\s+/g, '_')}_${testData.fullName.replace(/\s+/g, '_')}.txt`
+    userPrompt: `Generate a complete medical report in ENGLISH for an S2 application based on this patient data:
+
+PATIENT DATA:
+{patientData}
+
+TREATMENT DATE: {treatmentDate}
+
+The report must be ready for submission to NHS England authorities and medically justify the urgency of bariatric surgery abroad given NHS delays.
+
+WRITE EVERYTHING IN ENGLISH.`
+  },
+
+  undue_delay_letter: {
+    systemPrompt: `You are a consultant bariatric surgeon with expertise in writing medical letters justifying "undue delay" for S2 applications.
+
+OBJECTIVE: Draft a medical letter in ENGLISH demonstrating that NHS delays constitute a medically unacceptable "undue delay" for THIS specific patient.
+
+MANDATORY STRUCTURE:
+1. Professional Header (surgeon credentials)
+2. Subject Line with patient references
+3. Patient Background (extreme BMI, comorbidities)
+4. Definition of Specific Delay Risks for THIS patient
+5. Scientific Evidence with References (minimum 6 major studies)
+6. Quantified Risk Differential Table
+7. Firm Conclusion on Medical Urgency
+
+SCIENTIFIC EVIDENCE TO INTEGRATE:
+- Arterburn et al. JAMA 2015 (55% mortality reduction)
+- Sjöström et al. NEJM 2007/2012 (SOS Study)
+- Welbourn et al. Lancet 2014 (UK registry data)
+- Mitchell et al. Obesity Reviews 2013 (psychiatric impact)
+- Christou et al. Ann Surg 2004
+
+STYLE: Authoritative, scientific, unequivocal about urgency.
+CRITICAL: Write entirely in ENGLISH.`,
     
-    const blob = new Blob([result.content], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    userPrompt: `Write an expert letter in ENGLISH justifying "undue delay" for this patient:
+
+PATIENT DATA:
+{patientData}
+
+CURRENT NHS DELAYS:
+- Bariatric surgery: 18-34 months depending on region
+- Waiting lists: >8,000 patients (RCS 2024)
+- No trust meets 18-week target
+
+The letter must convince NHS England that this delay is medically unacceptable for this specific patient.
+
+WRITE EVERYTHING IN ENGLISH.`
+  },
+
+  provider_declaration: {
+    systemPrompt: `You are a hospital administrator expert in completing official provider declarations for European S2 schemes.
+
+OBJECTIVE: Complete the provider declaration in ENGLISH conforming to NHS England and European regulations.
+
+MANDATORY COMPONENTS:
+1. Exact patient information
+2. Precise diagnosis and treatment
+3. Regulatory confirmations (7 mandatory points)
+4. Facility and clinician details
+5. Provider type (public/private)
+6. Compliant signatures and dates
+
+STYLE: Administrative, precise, legally binding.
+CRITICAL: Write entirely in ENGLISH.`,
+    
+    userPrompt: `Complete the provider declaration in ENGLISH for:
+
+PATIENT: {patientData}
+FACILITY: Hôpital de La Tour, Geneva
+SURGEON: Dr Jean-Marie Megevand
+TREATMENT: Sleeve gastrectomy
+DATE: {treatmentDate}
+
+Ensure all regulatory elements are present for NHS England validation.
+
+WRITE EVERYTHING IN ENGLISH.`
+  },
+
+  s2_application_form: {
+    systemPrompt: `You are an expert in S2 administrative procedures, specializing in completing official NHS England application forms.
+
+OBJECTIVE: Complete the S2 (England) application form in ENGLISH with maximum administrative precision.
+
+SECTIONS TO COMPLETE:
+1. S2 Funding Route (Part 1) - regulatory confirmations
+2. Patient and GP Details (Part 2) - exact personal data
+3. Nationality Switzerland (Part 3) - nationality eligibility
+4. Treating Clinician/Provider (Part 4) - facility details
+5. Diagnosis/Treatment (Part 5) - medical indication
+6. Supporting Information (Part 6) - additional context
+7. Declarations (Parts 7-10) - legal signatures
+8. Application Checklist (Part 11) - completeness verification
+
+STYLE: Strict administrative, factual, error-free.
+CRITICAL: Write entirely in ENGLISH.`,
+    
+    userPrompt: `Complete the S2 application form in ENGLISH for:
+
+PATIENT DATA: {patientData}
+TREATMENT: Sleeve gastrectomy, Hôpital de La Tour, Geneva
+TREATMENT DATE: {treatmentDate}
+APPLICANT: Dr Stéphane Bach (representative)
+
+The form must be perfectly completed to avoid administrative delays.
+
+WRITE EVERYTHING IN ENGLISH.`
+  },
+
+  legal_justification_letter: {
+    systemPrompt: `You are a legal expert in European health law, specializing in S2 appeals and CJEU jurisprudence.
+
+OBJECTIVE: Draft a legal letter in ENGLISH for an S2 application, integrating European jurisprudence and factual NHS data.
+
+MANDATORY LEGAL STRUCTURE:
+1. Legal Framework (Regulations EC 883/2004, 987/2009)
+2. Relevant CJEU Jurisprudence (Watts, Smits-Peerbooms, Elchinov, Petru)
+3. NHS "Undue Delay" Guidance
+4. Factual Evidence of NHS Delays (national data)
+5. Bariatric Surgery Specific Data
+6. Patient's Medical Situation
+7. Legal Conclusion and Formal Request
+
+STYLE: Formal legal, argued, referenced, binding.
+CRITICAL: Write entirely in ENGLISH.`,
+    
+    userPrompt: `Draft a legal justification letter in ENGLISH for an S2 application:
+
+PATIENT: {patientData}
+CONTEXT: Urgent bariatric surgery, NHS delays 18-34 months
+AUTHORITY: NHS England Overseas Healthcare Services
+
+The letter must demonstrate the legal obligation to grant S2 authorization given proven "undue delay" in the NHS system.
+
+WRITE EVERYTHING IN ENGLISH.`
+  }
+}
+
+// Templates de validation pour chaque type de document
+const VALIDATION_TEMPLATES = {
+  medical_report: {
+    requiredSections: [
+      'Patient Identification',
+      'Clinical Data', 
+      'Comorbidities',
+      'Current Medications',
+      'NICE Eligibility Criteria',
+      'Surgical Indication',
+      'Receiving Hospital',
+      'Treatment Schedule',
+      'Narrative Summary',
+      'Medical Justification for Urgency',
+      'Conclusion'
+    ],
+    minWordCount: 1500,
+    mustInclude: ['BMI', 'NICE', 'sleeve gastrectomy', 'comorbidities', 'undue delay']
+  },
+  undue_delay_letter: {
+    requiredSections: [
+      'Professional Header',
+      'Subject Line',
+      'Patient Background', 
+      'Risks of Undue Delay',
+      'Evidence from Literature',
+      'Quantified Risks',
+      'Conclusion'
+    ],
+    minWordCount: 1200,
+    mustInclude: ['undue delay', 'mortality risk', 'cardiovascular', 'JAMA', 'NEJM']
+  },
+  provider_declaration: {
+    requiredSections: [
+      'Patient Details',
+      'Treatment Description',
+      'Provider Confirmations',
+      'Cost Breakdown',
+      'Signatures'
+    ],
+    minWordCount: 800,
+    mustInclude: ['S2', 'state funded', 'co-payment', 'Hôpital de La Tour']
+  },
+  s2_application_form: {
+    requiredSections: [
+      'S2 Funding Route',
+      'Patient and GP Details',
+      'Nationality Switzerland',
+      'Treating Clinician',
+      'Diagnosis/Treatment',
+      'Application Checklist'
+    ],
+    minWordCount: 1000,
+    mustInclude: ['Switzerland', 'sleeve gastrectomy', 'NHS number']
+  },
+  legal_justification_letter: {
+    requiredSections: [
+      'Legal Framework',
+      'CJEU Jurisprudence',
+      'NHS Guidance',
+      'Factual Evidence',
+      'Bariatric Surgery Data',
+      'Medical Situation',
+      'Legal Conclusion'
+    ],
+    minWordCount: 2000,
+    mustInclude: ['Article 20', 'Watts', 'Petru', 'undue delay', 'Regulation 883/2004']
+  }
+}
+
+// Fonction pour obtenir la configuration optimale
+function getOptimalConfig(documentType: string, customMaxTokens?: number) {
+  const config = OPENAI_CONFIG.documentConfigs[documentType] || OPENAI_CONFIG.documentConfigs.medical_report
+  
+  return {
+    model: config.model,
+    max_tokens: customMaxTokens || config.max_tokens,
+    temperature: config.temperature,
+    top_p: config.top_p,
+    frequency_penalty: config.frequency_penalty,
+    presence_penalty: config.presence_penalty,
+    response_format: { type: "text" },
+  }
+}
+
+// Fonction d'appel API avec retry
+async function makeOpenAIRequest(config: any, apiKey: string, retryCount = 0): Promise<any> {
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(config),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      
+      // Rate limit - retry
+      if (response.status === 429 && retryCount < 3) {
+        const delay = 1000 * Math.pow(2, retryCount)
+        await new Promise(resolve => setTimeout(resolve, delay))
+        return makeOpenAIRequest(config, apiKey, retryCount + 1)
+      }
+      
+      // Fallback vers mini si modèle principal indisponible
+      if (response.status === 404 && config.model === "gpt-4o") {
+        console.warn("GPT-4O non disponible, fallback vers GPT-4O-mini")
+        const fallbackConfig = { ...config, model: "gpt-4o-mini" }
+        return makeOpenAIRequest(fallbackConfig, apiKey, retryCount)
+      }
+      
+      throw new Error(`OpenAI API Error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    if (retryCount < 3) {
+      const delay = 1000 * Math.pow(2, retryCount)
+      await new Promise(resolve => setTimeout(resolve, delay))
+      return makeOpenAIRequest(config, apiKey, retryCount + 1)
+    }
+    throw error
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const { patientData, documentType, treatmentDate, maxTokens = 4000 } = await request.json()
+
+    // Validation du type de document
+    if (!DOCUMENT_PROMPTS[documentType]) {
+      return NextResponse.json(
+        { error: `Type de document non supporté: ${documentType}. Types disponibles: ${Object.keys(DOCUMENT_PROMPTS).join(', ')}` },
+        { status: 400 }
+      )
+    }
+
+    // Validation des données patient
+    if (!patientData || typeof patientData !== 'object') {
+      return NextResponse.json(
+        { error: "Données patient manquantes ou invalides" },
+        { status: 400 }
+      )
+    }
+
+    // Check if OpenAI API key is configured
+    const apiKey = process.env.OPENAI_API_KEY
+    if (!apiKey || !apiKey.startsWith("sk-")) {
+      return NextResponse.json(
+        {
+          error: "OpenAI API key not configured. Please set OPENAI_API_KEY in your environment variables.",
+        },
+        { status: 500 },
+      )
+    }
+
+    const prompt = DOCUMENT_PROMPTS[documentType]
+    
+    // Format patient data appropriately for each document type
+    let formattedPatientData = ''
+    
+    switch(documentType) {
+      case 'medical_report':
+        formattedPatientData = `
+PATIENT IDENTIFICATION:
+- Full Name: ${patientData.fullName}
+- Date of Birth: ${patientData.dateOfBirth} (Age: ${patientData.age || 'N/A'})
+- Sex: ${patientData.sex || 'Female'}
+- NHS Number: ${patientData.nhsNumber}
+- Address: ${patientData.address}
+- Phone: ${patientData.phone}
+- Email: ${patientData.email}
+
+GP INFORMATION:
+- GP Name: ${patientData.gpName || 'Not specified'}
+- Practice: ${patientData.gpPractice || 'Not specified'}
+- Address: ${patientData.gpAddress || 'Not specified'}
+
+CLINICAL DATA:
+- Height: ${patientData.height} cm
+- Weight: ${patientData.weight} kg
+- BMI: ${patientData.bmi}
+- Primary Diagnosis: ${patientData.primaryDiagnosis || patientData.diagnosis}
+
+COMORBIDITIES:
+${Array.isArray(patientData.comorbidities) ? patientData.comorbidities.map((c, i) => 
+  typeof c === 'object' ? `${i+1}. ${c.condition} - ${c.severity || 'N/A'} - Impact: ${c.impact || 'N/A'}` 
+  : `${i+1}. ${c}`
+).join('\n') : 'None specified'}
+
+CURRENT MEDICATIONS:
+${Array.isArray(patientData.medications) ? patientData.medications.map((m, i) => 
+  typeof m === 'object' ? `${i+1}. ${m.name} ${m.dose} ${m.frequency} - ${m.indication}`
+  : `${i+1}. ${m}`
+).join('\n') : 'None specified'}
+
+WEIGHT MANAGEMENT HISTORY:
+${patientData.weightManagementHistory ? `
+- Tier 3 Program: ${patientData.weightManagementHistory.tier3Program ? 'Completed' : 'N/A'}
+- Duration: ${patientData.weightManagementHistory.tier3Duration || 'N/A'}
+- Outcome: ${patientData.weightManagementHistory.tier3Outcome || 'N/A'}
+- Dietary Pattern: ${patientData.weightManagementHistory.dietaryPattern || 'N/A'}
+- Physical Activity: ${patientData.weightManagementHistory.physicalActivity || 'N/A'}
+` : 'Multiple dietary and lifestyle interventions with unsustained results'}
+
+NICE ELIGIBILITY:
+${patientData.niceEligibility ? `
+- BMI Criteria Met: ${patientData.niceEligibility.bmiCriteria ? 'YES' : 'NO'} (BMI: ${patientData.niceEligibility.bmiValue})
+- Severe Comorbidities: ${patientData.niceEligibility.severeComorbidities ? 'YES' : 'NO'}
+- Tier 3 Completion: ${patientData.niceEligibility.tier3Completion ? 'YES' : 'NO'}
+- Patient Motivation: ${patientData.niceEligibility.patientMotivation || 'Strong'}
+` : 'BMI >40 with multiple severe comorbidities, all NICE criteria met'}
+
+TREATMENT PLAN:
+- Proposed Procedure: ${patientData.proposedTreatment}
+- Hospital: ${patientData.facilityName || 'Hôpital de La Tour'}
+- Location: ${patientData.facilityAddress || 'Geneva, Switzerland'}
+- Surgeon: ${patientData.surgeonName || 'Dr Jean-Marie Megevand'}
+- Surgery Date: ${patientData.surgeryDate || treatmentDate}
+
+NHS DELAYS CONTEXT:
+${patientData.nhsDelays ? `
+- Bariatric Surgery Wait: ${patientData.nhsDelays.bariatricSurgeryWaitTime}
+- Current Waiting List: ${patientData.nhsDelays.currentWaitingList}
+- Target Compliance: ${patientData.nhsDelays.targetCompliance}
+` : 'NHS bariatric surgery delays: 18-34 months, >8000 patients waiting'}
+`
+        break
+        
+      case 'undue_delay_letter':
+        formattedPatientData = `
+PATIENT DETAILS:
+- Name: ${patientData.fullName}
+- DOB: ${patientData.dateOfBirth} (Age: ${patientData.age || 'N/A'})
+- NHS Number: ${patientData.nhsNumber}
+
+CLINICAL SUMMARY:
+- BMI: ${patientData.bmi} (Height: ${patientData.height}cm, Weight: ${patientData.weight}kg)
+- Classification: ${patientData.primaryDiagnosis || patientData.diagnosis}
+
+KEY COMORBIDITIES:
+${Array.isArray(patientData.comorbidities) ? patientData.comorbidities.slice(0, 6).map((c, i) => 
+  typeof c === 'object' ? `${i+1}. ${c.condition} (${c.severity || 'Moderate to severe'})`
+  : `${i+1}. ${c}`
+).join('\n') : 'Multiple severe comorbidities'}
+
+PROPOSED TREATMENT:
+- Procedure: ${patientData.proposedTreatment}
+- Planned Date: ${patientData.surgeryDate || treatmentDate} (within 3 months)
+- Hospital: ${patientData.facilityName || 'Hôpital de La Tour'}, ${patientData.treatmentCountry || 'Switzerland'}
+- Surgeon: ${patientData.surgeonName || 'Dr Jean-Marie Megevand'}
+
+NHS DELAY CONTEXT:
+${patientData.nhsDelays ? `
+- Current NHS Wait Times: ${patientData.nhsDelays.bariatricSurgeryWaitTime}
+- Patients Waiting: ${patientData.nhsDelays.currentWaitingList}
+- This represents a delay of 12-18 months vs proposed surgery in 3 months
+` : 'NHS delays 18-34 months vs proposed treatment in 3 months'}
+
+QUANTIFIED RISKS IF DELAYED:
+${patientData.quantifiedRisks ? `
+- Annual Mortality: ${patientData.quantifiedRisks.annualMortality?.withoutSurgery || '3-4% per year'}
+- Cardiovascular Risk: ${patientData.quantifiedRisks.cardiovascular?.withoutSurgery || '40-50% higher'}
+- Diabetes Incidence: ${patientData.quantifiedRisks.diabetes?.withoutSurgery || '8-10% per year'}
+` : 'Significant increased mortality and morbidity risk'}
+`
+        break
+        
+      case 'provider_declaration':
+        formattedPatientData = `
+PATIENT INFORMATION:
+- Name: ${patientData.fullName}
+- Date of Birth: ${patientData.dateOfBirth}
+- Address: ${patientData.address}
+
+DIAGNOSIS AND TREATMENT:
+- Diagnosis: ${patientData.primaryDiagnosis || patientData.diagnosis}
+- Procedure: ${patientData.proposedTreatment}
+- Treatment Date: ${patientData.surgeryDate || treatmentDate}
+
+FACILITY INFORMATION:
+- Name: ${patientData.facilityName || 'Hôpital de La Tour'}
+- Address: ${patientData.facilityAddress || 'Avenue J.-D. Maillard 3, 1217 Meyrin, Geneva, Switzerland'}
+- Type: ${patientData.facilityType || 'Public (State Funded) Healthcare Provider'}
+- Phone: ${patientData.facilityPhone || '+41 22 719 63 65'}
+- Email: ${patientData.facilityEmail || 'direction@latour.ch'}
+
+TREATING CLINICIAN:
+- Name: ${patientData.surgeonName || 'Dr Jean-Marie Megevand'}
+- Title: ${patientData.surgeonTitle || 'Consultant Bariatric Surgeon'}
+
+ADMINISTRATIVE CONTACT:
+- Name: ${patientData.administrativeContact || 'Olivier SCHMITT'}
+- Title: ${patientData.administrativeTitle || 'Directeur General/CEO'}
+`
+        break
+        
+      case 's2_application_form':
+        formattedPatientData = `
+PART 1 - S2 FUNDING ROUTE:
+- Application Type: Before treatment
+- Planned Treatment Date: ${patientData.surgeryDate || treatmentDate}
+- Treatment in State Healthcare: YES
+- Country: ${patientData.treatmentCountry || 'Switzerland'}
+- Ordinarily Resident in England: YES
+- Travel Dates: ${patientData.expectedTravelDates?.departure || 'N/A'} to ${patientData.expectedTravelDates?.return || 'N/A'}
+
+PART 2 - PATIENT AND GP DETAILS:
+- Family Name: ${patientData.lastName || patientData.fullName?.split(' ')[1] || 'Griffin'}
+- First Name: ${patientData.firstName || patientData.fullName?.split(' ')[0] || 'Karen'}
+- Date of Birth: ${patientData.dateOfBirth}
+- Sex: ${patientData.sex || 'Female'}
+- NHS Number: ${patientData.nhsNumber}
+- National Insurance: ${patientData.nationalInsurance || 'N/A'}
+- Phone: ${patientData.phone}
+- Email: ${patientData.email}
+- Address: ${patientData.address}
+- GP Name: ${patientData.gpName || 'N/A'}
+- GP Practice: ${patientData.gpPractice || 'N/A'}
+- GP Address: ${patientData.gpAddress || 'N/A'}
+- GP Consultation Date: ${patientData.gpConsultationDate || 'N/A'}
+
+PART 4 - TREATING CLINICIAN/PROVIDER:
+- Clinician Name: ${patientData.surgeonName || 'Dr Jean-Marie Megevand'}
+- Establishment: ${patientData.facilityName || 'Hôpital de La Tour'}
+- Address: ${patientData.facilityAddress || 'Avenue J.-D. Maillard 3, 1217 Meyrin'}
+- Country: ${patientData.treatmentCountry || 'Switzerland'}
+- Phone: ${patientData.facilityPhone || '+41 22 719 63 65'}
+- Email: ${patientData.facilityEmail || 'direction@latour.ch'}
+
+PART 5 - DIAGNOSIS/TREATMENT:
+- Diagnosed Condition: ${patientData.primaryDiagnosis || patientData.diagnosis}
+- Treatment Description: ${patientData.proposedTreatment}
+- Planned Treatment Date: ${patientData.surgeryDate || treatmentDate}
+
+PART 10 - APPLICANT DETAILS:
+- Applicant Name: ${patientData.applicantName || 'Dr Stéphane Bach'}
+- Relationship: ${patientData.applicantRelationship || 'Authorised Representative for S2 Application'}
+- Title: ${patientData.applicantTitle || 'Doctor'}
+- Phone: ${patientData.applicantPhone || 'N/A'}
+- Email: ${patientData.applicantEmail || 'N/A'}
+- Address: ${patientData.applicantAddress || 'N/A'}
+`
+        break
+        
+      case 'legal_justification_letter':
+        formattedPatientData = `
+PATIENT IDENTIFICATION:
+- Name: ${patientData.fullName}
+- DOB: ${patientData.dateOfBirth}
+- NHS Number: ${patientData.nhsNumber}
+
+MEDICAL SITUATION:
+- BMI: ${patientData.bmi} (Morbid obesity)
+- Key Comorbidities: ${Array.isArray(patientData.comorbidities) ? 
+  patientData.comorbidities.slice(0, 5).map(c => typeof c === 'object' ? c.condition : c).join(', ')
+  : 'Multiple severe comorbidities'}
+- Tier 3 Program: ${patientData.weightManagementHistory?.tier3Program ? 'Completed' : 'Completed'} - Failed conservative management
+- NICE Eligibility: Fully met (BMI >40 with severe comorbidities)
+
+PROPOSED TREATMENT:
+- Procedure: ${patientData.proposedTreatment}
+- Date: ${patientData.surgeryDate || treatmentDate}
+- Location: ${patientData.facilityName || 'Hôpital de La Tour'}, ${patientData.treatmentCountry || 'Switzerland'}
+
+NHS DELAYS (FACTUAL EVIDENCE):
+${patientData.nhsDelays ? `
+- Bariatric Surgery Wait Times: ${patientData.nhsDelays.bariatricSurgeryWaitTime}
+- Current Waiting List: ${patientData.nhsDelays.currentWaitingList}
+- NHS Target Compliance: ${patientData.nhsDelays.targetCompliance}
+- Regional Variation: ${patientData.nhsDelays.regionalVariation || 'Significant disparities'}
+- Tier 3 Delays: ${patientData.nhsDelays.tier3Delays || 'Often >20 months'}
+` : 'NHS delays 18-34 months, >8000 patients waiting, no trust meets targets'}
+
+LEGAL FRAMEWORK:
+${patientData.legalFramework ? `
+- Regulation: ${patientData.legalFramework.regulation}
+- Key Article: ${patientData.legalFramework.article}
+- CJEU Cases: ${patientData.legalFramework.cjeuCases?.join('; ') || 'Watts, Petru, Elchinov, Smits-Peerbooms'}
+- NHS Guidance: ${patientData.legalFramework.nhsGuidance}
+` : 'EC 883/2004, Article 20, CJEU jurisprudence (Watts, Petru, Elchinov)'}
+
+AUTHORITY:
+- NHS England Overseas Healthcare Services
+- European Cross Border Healthcare Team
+`
+        break
+        
+      default:
+        formattedPatientData = JSON.stringify(patientData, null, 2)
+    }
+    
+    // Préparation des messages avec prompts spécialisés
+    const messages = [
+      {
+        role: "system",
+        content: prompt.systemPrompt
+      },
+      {
+        role: "user", 
+        content: prompt.userPrompt
+          .replace('{patientData}', formattedPatientData)
+          .replace('{treatmentDate}', treatmentDate || new Date().toISOString().split('T')[0])
+      }
+    ]
+
+    // Configuration optimale pour le type de document
+    const apiConfig = getOptimalConfig(documentType, maxTokens)
+    apiConfig.messages = messages
+
+    // Estimation préliminaire des tokens et coûts
+    const inputText = messages.map(m => m.content).join(' ')
+    const estimatedInputTokens = estimateTokens(inputText)
+    const estimatedCost = estimateCost(apiConfig.model, estimatedInputTokens, apiConfig.max_tokens)
+
+    console.log(`Génération ${documentType}: ~${estimatedInputTokens} tokens input, coût estimé: $${estimatedCost.toFixed(4)}`)
+
+    // Appel API avec retry et gestion d'erreurs
+    const data = await makeOpenAIRequest(apiConfig, apiKey)
+    const content = data.choices[0]?.message?.content || ""
+
+    // Validation basique du contenu généré
+    const validation = validateDocumentContent(content, documentType)
+
+    // Calcul du coût réel
+    const actualInputTokens = data.usage?.prompt_tokens || estimatedInputTokens
+    const actualOutputTokens = data.usage?.completion_tokens || 0
+    const actualCost = estimateCost(apiConfig.model, actualInputTokens, actualOutputTokens)
+
+    // Métadonnées pour tracking qualité et debugging
+    const metadata = {
+      documentType,
+      generatedAt: new Date().toISOString(),
+      promptVersion: "1.0",
+      model: apiConfig.model, // Modèle réellement utilisé
+      tokensUsed: data.usage?.total_tokens || 0,
+      inputTokens: actualInputTokens,
+      outputTokens: actualOutputTokens,
+      estimatedCost: actualCost,
+      validation,
+      patientId: patientData.nhsNumber || patientData.id || 'unknown',
+      generation: {
+        temperature: apiConfig.temperature,
+        maxTokens: apiConfig.max_tokens,
+        topP: apiConfig.top_p
+      }
+    }
+
+    return NextResponse.json({ 
+      content,
+      metadata,
+      documentType,
+      success: validation.isValid,
+      warnings: validation.warnings
+    })
+  } catch (error) {
+    console.error("Document generation error:", error)
+    return NextResponse.json({ 
+      error: "Internal server error during document generation",
+      details: error.message 
+    }, { status: 500 })
+  }
+}
+
+// Fonction de validation du contenu généré
+function validateDocumentContent(content: string, documentType: string) {
+  const template = VALIDATION_TEMPLATES[documentType]
+  if (!template) {
+    return { isValid: true, warnings: [] }
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-6xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Link 
-                href="/"
-                className="text-blue-600 hover:text-blue-800 font-medium"
-              >
-                ← Retour
-              </Link>
-              <h1 className="text-2xl font-bold text-gray-900">
-                Test API Génération Documents S2
-              </h1>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-sm text-gray-600">API Active</span>
-            </div>
-          </div>
-        </div>
-      </div>
+  const warnings = []
+  const wordCount = content.split(/\s+/).length
 
-      <div className="max-w-6xl mx-auto p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Configuration */}
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-lg font-semibold mb-4">Configuration du Test</h2>
-              
-              {/* Type de document */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Type de Document
-                </label>
-                <select
-                  value={selectedDocType}
-                  onChange={(e) => setSelectedDocType(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  {DOCUMENT_TYPES.map(type => (
-                    <option key={type.key} value={type.key}>
-                      {type.icon} {type.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+  // Validation du nombre de mots minimum
+  if (wordCount < template.minWordCount) {
+    warnings.push(`Document trop court: ${wordCount} mots (minimum: ${template.minWordCount})`)
+  }
 
-              {/* Tokens maximum */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tokens Maximum
-                </label>
-                <input
-                  type="number"
-                  value={maxTokens}
-                  onChange={(e) => setMaxTokens(Number(e.target.value))}
-                  min="500"
-                  max="5000"
-                  step="500"
-                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Plus de tokens = document plus long (coût plus élevé)
-                </p>
-              </div>
-
-              {/* Bouton de test */}
-              <button
-                onClick={testAPI}
-                disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {loading ? (
-                  <div className="flex items-center justify-center">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                    Génération en cours...
-                  </div>
-                ) : (
-                  'Générer le Document'
-                )}
-              </button>
-            </div>
-
-            {/* Données patient */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-lg font-semibold mb-4">Complete Patient Test Data</h3>
-              <div className="space-y-3 text-sm">
-                <div className="border-b pb-2">
-                  <strong className="text-gray-700">Personal Information</strong>
-                  <div className="mt-1 space-y-1">
-                    <div><span className="text-gray-600">Name:</span> {testData.fullName}</div>
-                    <div><span className="text-gray-600">DOB:</span> {testData.dateOfBirth} (Age: {testData.age})</div>
-                    <div><span className="text-gray-600">NHS:</span> {testData.nhsNumber}</div>
-                    <div><span className="text-gray-600">NI:</span> {testData.nationalInsurance}</div>
-                  </div>
-                </div>
-                
-                <div className="border-b pb-2">
-                  <strong className="text-gray-700">Clinical Data</strong>
-                  <div className="mt-1 space-y-1">
-                    <div><span className="text-gray-600">BMI:</span> {testData.bmi} (Height: {testData.height}cm, Weight: {testData.weight}kg)</div>
-                    <div><span className="text-gray-600">Diagnosis:</span> {testData.primaryDiagnosis}</div>
-                  </div>
-                </div>
-                
-                <div className="border-b pb-2">
-                  <strong className="text-gray-700">Comorbidities ({testData.comorbidities.length})</strong>
-                  <div className="mt-1 text-xs text-gray-600">
-                    {testData.comorbidities.slice(0, 3).map((c, i) => (
-                      <div key={i}>• {c.condition}</div>
-                    ))}
-                    {testData.comorbidities.length > 3 && (
-                      <div className="text-gray-500 italic">+ {testData.comorbidities.length - 3} more...</div>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="border-b pb-2">
-                  <strong className="text-gray-700">Medications ({testData.medications.length})</strong>
-                  <div className="mt-1 text-xs text-gray-600">
-                    {testData.medications.slice(0, 3).map((m, i) => (
-                      <div key={i}>• {m.name} - {m.dose}</div>
-                    ))}
-                    {testData.medications.length > 3 && (
-                      <div className="text-gray-500 italic">+ {testData.medications.length - 3} more...</div>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="border-b pb-2">
-                  <strong className="text-gray-700">Treatment Plan</strong>
-                  <div className="mt-1 space-y-1">
-                    <div><span className="text-gray-600">Procedure:</span> {testData.proposedTreatment}</div>
-                    <div><span className="text-gray-600">Hospital:</span> {testData.facilityName}</div>
-                    <div><span className="text-gray-600">Surgeon:</span> {testData.surgeonName}</div>
-                    <div><span className="text-gray-600">Date:</span> {testData.surgeryDate}</div>
-                  </div>
-                </div>
-                
-                <div className="bg-blue-50 p-3 rounded">
-                  <div className="text-xs font-medium text-blue-800">
-                    ✓ Complete dataset includes:
-                  </div>
-                  <div className="text-xs text-blue-700 mt-1">
-                    {testData.comorbidities.length} comorbidities, {testData.medications.length} medications, 
-                    NICE eligibility, tier 3 history, scientific evidence, legal framework
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Résultats */}
-          <div className="space-y-6">
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">Erreur</h3>
-                    <div className="mt-2 text-sm text-red-700">{error}</div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {result && (
-              <div className="space-y-4">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <div className="flex items-center">
-                    <svg className="h-5 w-5 text-green-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    <span className="text-green-800 font-medium">Document généré avec succès!</span>
-                  </div>
-                </div>
-                
-                {/* Métadonnées */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  <h3 className="text-lg font-semibold mb-4">Métadonnées</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium">Modèle:</span> {result.metadata?.model}
-                    </div>
-                    <div>
-                      <span className="font-medium">Tokens:</span> {result.metadata?.tokensUsed}
-                    </div>
-                    <div>
-                      <span className="font-medium">Coût:</span> ${result.metadata?.estimatedCost?.toFixed(6) || 'N/A'}
-                    </div>
-                    <div>
-                      <span className="font-medium">Mots:</span> {result.metadata?.validation?.wordCount}
-                    </div>
-                    <div>
-                      <span className="font-medium">Complétude:</span> {result.metadata?.validation?.completeness?.toFixed(1)}%
-                    </div>
-                    <div>
-                      <span className="font-medium">Température:</span> {result.metadata?.generation?.temperature}
-                    </div>
-                  </div>
-                  
-                  <button
-                    onClick={downloadDocument}
-                    className="mt-4 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm transition-colors"
-                  >
-                    Télécharger le Document
-                  </button>
-                </div>
-
-                {/* Avertissements */}
-                {result.warnings && result.warnings.length > 0 && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <h4 className="text-yellow-800 font-medium mb-2">Avertissements:</h4>
-                    <ul className="list-disc list-inside text-sm text-yellow-700 space-y-1">
-                      {result.warnings.map((warning: string, index: number) => (
-                        <li key={index}>{warning}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Contenu généré */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  <h3 className="text-lg font-semibold mb-4">Document Généré</h3>
-                  <div className="bg-gray-50 rounded border p-4 max-h-96 overflow-y-auto">
-                    <pre className="whitespace-pre-wrap text-sm font-mono">{result.content}</pre>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+  // Validation de la présence des termes obligatoires
+  const missingTerms = template.mustInclude.filter(term => 
+    !content.toLowerCase().includes(term.toLowerCase())
   )
+  
+  if (missingTerms.length > 0) {
+    warnings.push(`Termes manquants: ${missingTerms.join(', ')}`)
+  }
+
+  // Validation des sections (basique - recherche de mots-clés)
+  const missingSections = template.requiredSections.filter(section => {
+    const sectionKeywords = section.toLowerCase().split(' ')
+    return !sectionKeywords.some(keyword => 
+      content.toLowerCase().includes(keyword)
+    )
+  })
+
+  if (missingSections.length > 0) {
+    warnings.push(`Sections potentiellement manquantes: ${missingSections.join(', ')}`)
+  }
+
+  return {
+    isValid: warnings.length === 0,
+    warnings,
+    wordCount,
+    completeness: ((template.requiredSections.length - missingSections.length) / template.requiredSections.length) * 100
+  }
 }
